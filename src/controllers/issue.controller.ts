@@ -58,6 +58,27 @@ export const getRecentIssues = async (_req: Request, res: Response) => {
   }
 };
 
+export const getPublicIssuesAll = async (_req: Request, res: Response) => {
+  try {
+    const issues = await Issue.find({
+      isPublished: true,
+    })
+      .sort({ order: 1, createdAt: -1 })
+      .select("-__v");
+
+    res.status(200).json({
+      success: true,
+      data: issues,
+    });
+  } catch (error) {
+    console.error("getPublicIssuesAll error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch published issues",
+    });
+  }
+};
+
 export const getIssueBySlug = async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;

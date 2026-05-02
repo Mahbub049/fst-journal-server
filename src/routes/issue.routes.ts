@@ -7,6 +7,7 @@ import {
   getArticleBySlug,
   getHomeArticles,
   getIssueBySlug,
+  getPublicIssuesAll,
   getRecentIssues,
   updateAdminIssue,
 } from "../controllers/issue.controller";
@@ -23,6 +24,7 @@ router.delete("/admin/:id", protectAdmin, deleteAdminIssue);
 
 /* Public routes */
 router.get("/recent", getRecentIssues);
+router.get("/public/all", getPublicIssuesAll);
 router.get("/articles/home", getHomeArticles);
 router.get("/:issueSlug/articles/:articleSlug", getArticleBySlug);
 router.get("/:slug", getIssueBySlug);
