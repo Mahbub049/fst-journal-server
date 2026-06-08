@@ -6,6 +6,8 @@ import { connectDB } from "./config/db";
 import { seedAdmin } from "./utils/seedAdmin";
 import { seedPages } from "./utils/seedPages";
 import { seedHomepage } from "./utils/seedHomepage";
+import { seedMenus } from "./utils/seedMenus";
+import { seedSiteSettings } from "./utils/seedSiteSettings";
 
 const app = express();
 
@@ -35,6 +37,8 @@ app.use(async (_req: Request, _res: Response, next: NextFunction) => {
       await seedAdmin();
       await seedPages();
       await seedHomepage();
+      await seedMenus();
+      await seedSiteSettings();
 
       isDatabaseReady = true;
     }

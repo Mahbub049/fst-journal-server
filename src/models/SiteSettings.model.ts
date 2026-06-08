@@ -16,14 +16,19 @@ export interface ISocialLink {
 }
 
 export interface ISiteSettings extends Document {
+  footerJournalTitle: string;
+  footerJournalSubtitle: string;
   footerDescription: string;
+  publisherLabel: string;
+  publisherName: string;
   contactEmail: string;
   contactPhone: string;
   address: string;
   copyrightText: string;
+  footerCreditText: string;
+  footerCreditUrl: string;
 
   journalInfoTitle: string;
-  publisherName: string;
   publishingModel: string;
   language: string;
   publicationFrequency: string;
@@ -89,15 +94,39 @@ const socialLinkSchema = new Schema<ISocialLink>(
 
 const siteSettingsSchema = new Schema<ISiteSettings>(
   {
+    footerJournalTitle: {
+      type: String,
+      default: "Journal of FST",
+      trim: true,
+    },
+
+    footerJournalSubtitle: {
+      type: String,
+      default: "Bangladesh University of Professionals",
+      trim: true,
+    },
+
     footerDescription: {
       type: String,
       default:
-        "BUP Faculty of Science and Technology Journal publishes scholarly research in science, technology, engineering, and interdisciplinary areas.",
+        "A scholarly journal platform dedicated to publishing quality research in science, technology, engineering, and related interdisciplinary fields.",
+    },
+
+    publisherLabel: {
+      type: String,
+      default: "Publisher",
+      trim: true,
+    },
+
+    publisherName: {
+      type: String,
+      default: "Faculty of Science & Technology, BUP",
+      trim: true,
     },
 
     contactEmail: {
       type: String,
-      default: "",
+      default: "journal.fst@bup.edu.bd",
       trim: true,
       lowercase: true,
     },
@@ -110,13 +139,23 @@ const siteSettingsSchema = new Schema<ISiteSettings>(
 
     address: {
       type: String,
-      default: "Bangladesh University of Professionals, Dhaka, Bangladesh",
+      default: "Bangladesh University of Professionals, Mirpur Cantonment, Dhaka - 1216",
     },
 
     copyrightText: {
       type: String,
-      default:
-        "© Bangladesh University of Professionals. All rights reserved.",
+      default: "Copyright © 2026 Journal of FST. All rights reserved.",
+    },
+
+    footerCreditText: {
+      type: String,
+      default: "Designed for academic publishing and research visibility.",
+    },
+
+    footerCreditUrl: {
+      type: String,
+      default: "",
+      trim: true,
     },
 
     journalInfoTitle: {
@@ -125,15 +164,9 @@ const siteSettingsSchema = new Schema<ISiteSettings>(
       trim: true,
     },
 
-    publisherName: {
-      type: String,
-      default: "Bangladesh University of Professionals",
-      trim: true,
-    },
-
     publishingModel: {
       type: String,
-      default: "Open Access",
+      default: "Hybrid",
       trim: true,
     },
 
@@ -145,7 +178,7 @@ const siteSettingsSchema = new Schema<ISiteSettings>(
 
     publicationFrequency: {
       type: String,
-      default: "Regular",
+      default: "Annual",
       trim: true,
     },
 

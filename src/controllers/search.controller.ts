@@ -9,6 +9,48 @@ const escapeRegex = (text: string) => {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };
 
+const normalizeNumericToken = (token: string) => {
+  if (!/^\d+$/.test(token)) return escapeRegex(token);
+
+  const normalizedNumber = String(Number(token));
+
+  return `0*${escapeRegex(normalizedNumber)}`;
+};
+
+const uniqueRegexes = (regexes: RegExp[]) => {
+  const seen = new Set<string>();
+
+  return regexes.filter((regex) => {
+    const key = `${regex.source}-${regex.flags}`;
+    if (seen.has(key)) return false;
+
+    seen.add(key);
+    return true;
+  });
+};
+
+const buildSearchRegexes = (query: string) => {
+  const cleanQuery = query.trim();
+  const regexes: RegExp[] = [new RegExp(escapeRegex(cleanQuery), "i")];
+
+  const tokens = cleanQuery.split(/[\s_-]+/).filter(Boolean);
+
+  if (tokens.length > 1) {
+    const flexiblePattern = tokens.map(normalizeNumericToken).join("[\\s_-]+");
+    regexes.push(new RegExp(flexiblePattern, "i"));
+  }
+
+  return uniqueRegexes(regexes);
+};
+
+const buildFieldSearch = (fields: string[], regexes: RegExp[]) => {
+  return fields.flatMap((field) =>
+    regexes.map((regex) => ({
+      [field]: regex,
+    }))
+  );
+};
+
 export const publicSearch = async (req: Request, res: Response) => {
   try {
     const query = String(req.query.q || "").trim();
@@ -26,99 +68,116 @@ export const publicSearch = async (req: Request, res: Response) => {
       });
     }
 
-    const safeQuery = escapeRegex(query);
-    const regex = new RegExp(safeQuery, "i");
+    const searchRegexes = buildSearchRegexes(query);
 
     const articles = await Article.find({
       isPublished: true,
-      $or: [
-        { title: regex },
-        { authors: regex },
-        { abstract: regex },
-        { keywords: regex },
-        { pages: regex },
-        { doi: regex },
-        { articleId: regex },
-        { articleType: regex },
-        { accessType: regex },
-        { publishDate: regex },
-      ],
+      $or: buildFieldSearch(
+        [
+          "title",
+          "authors",
+          "abstract",
+          "keywords",
+          "pages",
+          "doi",
+          "articleId",
+          "articleType",
+          "accessType",
+          "publishDate",
+        ],
+        searchRegexes
+      ),
     })
-      .populate("issueId", "title slug volume issueNumber publishDateLabel issn category")
+      .populate(
+        "issueId",
+        "title slug volume issueNumber publishDateLabel issn category"
+      )
       .sort({ createdAt: -1 })
       .limit(30);
 
     const issues = await Issue.find({
       isPublished: true,
-      $or: [
-        { title: regex },
-        { slug: regex },
-        { category: regex },
-        { issn: regex },
-        { volume: regex },
-        { issueNumber: regex },
-        { publishDateLabel: regex },
-      ],
+      $or: buildFieldSearch(
+        [
+          "title",
+          "slug",
+          "category",
+          "issn",
+          "volume",
+          "issueNumber",
+          "publishDateLabel",
+        ],
+        searchRegexes
+      ),
     })
       .sort({ order: 1, createdAt: -1 })
       .limit(30);
 
     const pages = await Page.find({
       isPublished: true,
-      $or: [
-        { title: regex },
-        { slug: regex },
-        { group: regex },
-        { subtitle: regex },
-        { shortDescription: regex },
-        { metaTitle: regex },
-        { metaDescription: regex },
-        { buttonLabel: regex },
-        { buttonUrl: regex },
-        { "contentBlocks.title": regex },
-        { "contentBlocks.content": regex },
-        { "contentBlocks.items": regex },
-        { "contentBlocks.buttonLabel": regex },
-        { "contentBlocks.buttonUrl": regex },
-      ],
+      $or: buildFieldSearch(
+        [
+          "title",
+          "slug",
+          "group",
+          "subtitle",
+          "shortDescription",
+          "metaTitle",
+          "metaDescription",
+          "buttonLabel",
+          "buttonUrl",
+          "contentBlocks.title",
+          "contentBlocks.content",
+          "contentBlocks.items",
+          "contentBlocks.buttonLabel",
+          "contentBlocks.buttonUrl",
+        ],
+        searchRegexes
+      ),
     })
       .sort({ group: 1, order: 1 })
       .limit(30);
 
     const editorialMembers = await EditorialBoard.find({
       isActive: true,
-      $or: [
-        { category: regex },
-        { editorialArea: regex },
-        { name: regex },
-        { designation: regex },
-        { institution: regex },
-        { department: regex },
-        { expertise: regex },
-        { bio: regex },
-        { email: regex },
-      ],
+      $or: buildFieldSearch(
+        [
+          "category",
+          "editorialArea",
+          "name",
+          "designation",
+          "institution",
+          "department",
+          "expertise",
+          "bio",
+          "email",
+        ],
+        searchRegexes
+      ),
     })
       .sort({ category: 1, editorialArea: 1, order: 1 })
       .limit(30);
 
     const callForPapers = await CallForPaper.find({
       isPublished: true,
-      $or: [
-        { title: regex },
-        { subtitle: regex },
-        { description: regex },
-        { submissionButtonLabel: regex },
-        { submissionButtonLink: regex },
-        { contactEmail: regex },
-        { contactPhone: regex },
-        { publisherInfo: regex },
-        { "importantDates.label": regex },
-        { "importantDates.date": regex },
-        { "topics.title": regex },
-        { "topics.description": regex },
-        { "instructions.text": regex },
-      ],
+      $or: buildFieldSearch(
+        [
+          "title",
+          "subtitle",
+          "description",
+          "submissionButtonLabel",
+          "submissionButtonLink",
+          "contactEmail",
+          "contactPhone",
+          "publisherInfo",
+          "importantDates.label",
+          "importantDates.date",
+          "topics.title",
+          "topics.description",
+          "instructions.text",
+        ],
+        searchRegexes
+      ),
     })
       .sort({ createdAt: -1 })
       .limit(10);

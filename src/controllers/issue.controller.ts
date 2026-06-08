@@ -79,6 +79,47 @@ export const getPublicIssuesAll = async (_req: Request, res: Response) => {
   }
 };
 
+export const getCurrentIssue = async (_req: Request, res: Response) => {
+  try {
+    let issue = await Issue.findOne({
+      isPublished: true,
+      isRecent: true,
+    }).sort({ order: 1, createdAt: -1 });
+
+    if (!issue) {
+      issue = await Issue.findOne({
+        isPublished: true,
+      }).sort({ order: 1, createdAt: -1 });
+    }
+
+    if (!issue) {
+      return res.status(404).json({
+        success: false,
+        message: "Current issue not found",
+      });
+    }
+
+    const articles = await Article.find({
+      issueId: issue._id,
+      isPublished: true,
+    }).sort({ order: 1, createdAt: 1 });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        issue,
+        articles,
+      },
+    });
+  } catch (error) {
+    console.error("getCurrentIssue error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch current issue",
+    });
+  }
+};
+
 export const getIssueBySlug = async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;

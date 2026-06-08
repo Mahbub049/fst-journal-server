@@ -20,7 +20,16 @@ export const env = {
   admin: {
     name: process.env.ADMIN_NAME || "Admin",
     email: process.env.ADMIN_EMAIL || "admin@bupfstjournal.com",
-    password: process.env.ADMIN_PASSWORD || "admin12345",
+    initialPassword: process.env.ADMIN_INITIAL_PASSWORD || "",
+  },
+
+  brevo: {
+    apiKey: process.env.BREVO_API_KEY || "",
+    senderEmail: process.env.BREVO_SENDER_EMAIL || "",
+    senderName: process.env.BREVO_SENDER_NAME || "Journal of FST Admin",
+    otpExpiryMinutes: Number(process.env.ADMIN_OTP_EXPIRY_MINUTES || 10),
+    otpCooldownSeconds: Number(process.env.ADMIN_OTP_COOLDOWN_SECONDS || 60),
+    otpMaxAttempts: Number(process.env.ADMIN_OTP_MAX_ATTEMPTS || 5),
   },
 
   cloudinary: {

@@ -56,7 +56,7 @@ export const getPublicMenus = async (
   res: Response
 ): Promise<void> => {
   try {
-    const menus = await Menu.find({ isActive: true })
+    const menus = await Menu.find({})
       .sort({ location: 1, order: 1, label: 1 })
       .select("-__v");
 
