@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from "express";
+import path from "path";
 import cors from "cors";
 import routes from "./routes";
 import { env } from "./config/env";
@@ -28,6 +29,17 @@ app.use(
 
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+
+// Serve locally stored public PDFs, for example:
+// http://localhost:5000/pdfs/call-for-papers.pdf
+app.use(
+  "/pdfs",
+  express.static(path.join(process.cwd(), "public", "pdfs"), {
+    setHeaders: (res) => {
+      res.setHeader("Cache-Control", "no-store");
+    },
+  })
+);
 
 app.use(async (_req: Request, _res: Response, next: NextFunction) => {
   try {

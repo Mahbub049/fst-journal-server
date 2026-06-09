@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import fs from "fs/promises";
+import path from "path";
 import CallForPaper from "../models/CallForPaper.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 
@@ -420,6 +422,70 @@ export const updateAdminCallForPaper = async (
     res.status(500).json({
       success: false,
       message: "Failed to update call for papers content.",
+    });
+  }
+};
+
+
+export const uploadAdminCallForPaperPdf = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const file = req.file;
+
+    if (!file) {
+      res.status(400).json({
+        success: false,
+        message: "No PDF file uploaded.",
+      });
+      return;
+    }
+
+    if (file.mimetype !== "application/pdf") {
+      res.status(400).json({
+        success: false,
+        message: "Only PDF files are allowed for Call for Papers.",
+      });
+      return;
+    }
+
+    const pdfDirectory = path.join(process.cwd(), "public", "pdfs");
+    const pdfFileName = "call-for-papers.pdf";
+    const pdfPath = path.join(pdfDirectory, pdfFileName);
+
+    await fs.mkdir(pdfDirectory, { recursive: true });
+
+    // This replaces the existing file if it already exists.
+    await fs.writeFile(pdfPath, file.buffer);
+
+    // Keep the real file path fixed, but add a query string to avoid browser cache.
+    const publicPdfUrl = `/pdfs/${pdfFileName}?v=${Date.now()}`;
+
+    let callForPaper = await CallForPaper.findOne();
+
+    if (!callForPaper) {
+      callForPaper = await CallForPaper.create({
+        ...DEFAULT_CALL_FOR_PAPER,
+        pdfUrl: publicPdfUrl,
+      });
+    } else {
+      callForPaper.pdfUrl = publicPdfUrl;
+      await callForPaper.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "PDF uploaded and replaced successfully.",
+      data: mergeWithDefaults(callForPaper.toObject()),
+      pdfUrl: publicPdfUrl,
+    });
+  } catch (error) {
+    console.error("uploadAdminCallForPaperPdf error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to upload Call for Papers PDF.",
     });
   }
 };

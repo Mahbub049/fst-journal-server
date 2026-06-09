@@ -35,7 +35,7 @@ const IssueSchema = new Schema<IIssue>(
     },
     issn: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     volume: {

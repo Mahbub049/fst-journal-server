@@ -12,23 +12,66 @@ const createSlug = (text: string) => {
     .replace(/^-+|-+$/g, "");
 };
 
+const toBoolean = (value: any, defaultValue: boolean) => {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return ["true", "1", "yes", "on"].includes(value.toLowerCase());
+  }
+
+  return Boolean(value);
+};
+
 const normalizeIssuePayload = (body: Record<string, any>) => {
-  const title = body.title || "";
-  const slug = body.slug ? createSlug(body.slug) : createSlug(title);
+  const title = String(body.title || "").trim();
+  const slug = body.slug ? createSlug(String(body.slug)) : createSlug(title);
 
   return {
     title,
     slug,
-    category: body.category || "Research Article",
-    issn: body.issn || "",
-    volume: body.volume || "",
-    issueNumber: body.issueNumber || "",
-    publishDateLabel: body.publishDateLabel || "",
-    coverImage: body.coverImage || "",
-    pdfUrl: body.pdfUrl || "",
-    isRecent: body.isRecent ?? true,
-    isPublished: body.isPublished ?? true,
-    order: Number(body.order || 0),
+    category: String(body.category || "Research Article").trim(),
+    issn: String(body.issn || "").trim(),
+    volume: String(body.volume || "").trim(),
+
+    // Accept both backend and frontend-friendly field names.
+    issueNumber: String(
+      body.issueNumber || body.issueNo || body.issue || body.issue_number || ""
+    ).trim(),
+
+    publishDateLabel: String(
+      body.publishDateLabel ||
+        body.publicationDateLabel ||
+        body.publicationDate ||
+        body.publish_date_label ||
+        ""
+    ).trim(),
+
+    coverImage: String(
+      body.coverImage ||
+        body.coverImageUrl ||
+        body.coverImageURL ||
+        body.cover_image ||
+        ""
+    ).trim(),
+
+    pdfUrl: String(
+      body.pdfUrl ||
+        body.pdfURL ||
+        body.pdfLink ||
+        body.issuePdfUrl ||
+        body.pdf_url ||
+        ""
+    ).trim(),
+
+    isRecent: toBoolean(body.isRecent, true),
+    isPublished: toBoolean(body.isPublished, true),
+    order: Number(body.order ?? 0),
   };
 };
 
@@ -38,12 +81,17 @@ const normalizeIssuePayload = (body: Record<string, any>) => {
 
 export const getRecentIssues = async (_req: Request, res: Response) => {
   try {
+    // Homepage should show only the first 3 recent published issues.
+    // Only issues with order 1, 2, or 3 will appear here.
+    // Other published issues will still be available from the archive/all issues page.
     const issues = await Issue.find({
       isPublished: true,
       isRecent: true,
+      order: { $gte: 1, $lte: 3 },
     })
       .sort({ order: 1, createdAt: -1 })
-      .limit(4);
+      .limit(3)
+      .select("-__v");
 
     res.status(200).json({
       success: true,
