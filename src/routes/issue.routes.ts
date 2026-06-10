@@ -10,6 +10,7 @@ import {
   getIssueBySlug,
   getPublicIssuesAll,
   getRecentIssues,
+  trackArticleDownload,
   updateAdminIssue,
 } from "../controllers/issue.controller";
 import { protectAdmin } from "../middlewares/adminAuth.middleware";
@@ -28,6 +29,10 @@ router.get("/recent", getRecentIssues);
 router.get("/current", getCurrentIssue);
 router.get("/public/all", getPublicIssuesAll);
 router.get("/articles/home", getHomeArticles);
+router.get(
+  "/:issueSlug/articles/:articleSlug/download",
+  trackArticleDownload
+);
 router.get("/:issueSlug/articles/:articleSlug", getArticleBySlug);
 router.get("/:slug", getIssueBySlug);
 

@@ -5,6 +5,7 @@ export type MenuLocation =
   | "about"
   | "issues"
   | "for-authors"
+  | "editorial-board"
   | "footer";
 
 export type MenuItemType = "link" | "dropdown" | "button";
@@ -31,7 +32,7 @@ const menuSchema = new Schema<IMenu>(
 
     location: {
       type: String,
-      enum: ["main", "about", "issues", "for-authors", "footer"],
+      enum: ["main", "about", "issues", "for-authors", "editorial-board", "footer"],
       required: true,
       default: "main",
     },

@@ -12,66 +12,23 @@ const createSlug = (text: string) => {
     .replace(/^-+|-+$/g, "");
 };
 
-const toBoolean = (value: any, defaultValue: boolean) => {
-  if (value === undefined || value === null || value === "") {
-    return defaultValue;
-  }
-
-  if (typeof value === "boolean") {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    return ["true", "1", "yes", "on"].includes(value.toLowerCase());
-  }
-
-  return Boolean(value);
-};
-
 const normalizeIssuePayload = (body: Record<string, any>) => {
-  const title = String(body.title || "").trim();
-  const slug = body.slug ? createSlug(String(body.slug)) : createSlug(title);
+  const title = body.title || "";
+  const slug = body.slug ? createSlug(body.slug) : createSlug(title);
 
   return {
     title,
     slug,
-    category: String(body.category || "Research Article").trim(),
-    issn: String(body.issn || "").trim(),
-    volume: String(body.volume || "").trim(),
-
-    // Accept both backend and frontend-friendly field names.
-    issueNumber: String(
-      body.issueNumber || body.issueNo || body.issue || body.issue_number || ""
-    ).trim(),
-
-    publishDateLabel: String(
-      body.publishDateLabel ||
-        body.publicationDateLabel ||
-        body.publicationDate ||
-        body.publish_date_label ||
-        ""
-    ).trim(),
-
-    coverImage: String(
-      body.coverImage ||
-        body.coverImageUrl ||
-        body.coverImageURL ||
-        body.cover_image ||
-        ""
-    ).trim(),
-
-    pdfUrl: String(
-      body.pdfUrl ||
-        body.pdfURL ||
-        body.pdfLink ||
-        body.issuePdfUrl ||
-        body.pdf_url ||
-        ""
-    ).trim(),
-
-    isRecent: toBoolean(body.isRecent, true),
-    isPublished: toBoolean(body.isPublished, true),
-    order: Number(body.order ?? 0),
+    category: body.category || "Research Article",
+    issn: body.issn || "",
+    volume: body.volume || "",
+    issueNumber: body.issueNumber || "",
+    publishDateLabel: body.publishDateLabel || "",
+    coverImage: body.coverImage || "",
+    pdfUrl: body.pdfUrl || "",
+    isRecent: body.isRecent ?? true,
+    isPublished: body.isPublished ?? true,
+    order: Number(body.order || 0),
   };
 };
 
@@ -81,17 +38,12 @@ const normalizeIssuePayload = (body: Record<string, any>) => {
 
 export const getRecentIssues = async (_req: Request, res: Response) => {
   try {
-    // Homepage should show only the first 3 recent published issues.
-    // Only issues with order 1, 2, or 3 will appear here.
-    // Other published issues will still be available from the archive/all issues page.
     const issues = await Issue.find({
       isPublished: true,
       isRecent: true,
-      order: { $gte: 1, $lte: 3 },
     })
       .sort({ order: 1, createdAt: -1 })
-      .limit(3)
-      .select("-__v");
+      .limit(4);
 
     res.status(200).json({
       success: true,
@@ -221,11 +173,19 @@ export const getArticleBySlug = async (req: Request, res: Response) => {
       });
     }
 
-    const article = await Article.findOne({
-      issueId: issue._id,
-      slug: articleSlug,
-      isPublished: true,
-    });
+    const article = await Article.findOneAndUpdate(
+      {
+        issueId: issue._id,
+        slug: articleSlug,
+        isPublished: true,
+      },
+      {
+        $inc: { views: 1 },
+      },
+      {
+        new: true,
+      }
+    );
 
     if (!article) {
       return res.status(404).json({
@@ -246,6 +206,67 @@ export const getArticleBySlug = async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch article details",
+    });
+  }
+};
+
+export const trackArticleDownload = async (req: Request, res: Response) => {
+  try {
+    const { issueSlug, articleSlug } = req.params;
+
+    const issue = await Issue.findOne({
+      slug: issueSlug,
+      isPublished: true,
+    });
+
+    if (!issue) {
+      return res.status(404).json({
+        success: false,
+        message: "Issue not found",
+      });
+    }
+
+    const article = await Article.findOneAndUpdate(
+      {
+        issueId: issue._id,
+        slug: articleSlug,
+        isPublished: true,
+      },
+      {
+        $inc: { downloads: 1 },
+      },
+      {
+        new: true,
+      }
+    );
+
+    if (!article) {
+      return res.status(404).json({
+        success: false,
+        message: "Article not found",
+      });
+    }
+
+    if (!article.pdfUrl?.trim()) {
+      return res.status(404).json({
+        success: false,
+        message: "PDF not available",
+      });
+    }
+
+    const rawPdfUrl = article.pdfUrl.trim();
+    const fallbackBaseUrl = `${req.protocol}://${req.get("host")}`;
+    const refererBaseUrl = req.get("referer") || fallbackBaseUrl;
+    const redirectUrl = rawPdfUrl.startsWith("http")
+      ? rawPdfUrl
+      : new URL(rawPdfUrl, refererBaseUrl).toString();
+
+    return res.redirect(302, redirectUrl);
+  } catch (error) {
+    console.error("trackArticleDownload error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to open PDF",
     });
   }
 };
