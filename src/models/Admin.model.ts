@@ -11,6 +11,10 @@ export interface IAdmin extends Document {
   loginOtpExpiresAt?: Date;
   loginOtpAttempts: number;
   loginOtpLastSentAt?: Date;
+  resetOtpHash?: string;
+  resetOtpExpiresAt?: Date;
+  resetOtpAttempts: number;
+  resetOtpLastSentAt?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -65,6 +69,27 @@ const adminSchema = new Schema<IAdmin>(
     },
 
     loginOtpLastSentAt: {
+      type: Date,
+      select: false,
+    },
+
+    resetOtpHash: {
+      type: String,
+      select: false,
+    },
+
+    resetOtpExpiresAt: {
+      type: Date,
+      select: false,
+    },
+
+    resetOtpAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+
+    resetOtpLastSentAt: {
       type: Date,
       select: false,
     },

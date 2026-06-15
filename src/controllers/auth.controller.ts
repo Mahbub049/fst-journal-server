@@ -4,7 +4,10 @@ import crypto from "crypto";
 import Admin from "../models/Admin.model";
 import { env } from "../config/env";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
-import { sendAdminLoginOtpEmail } from "../services/brevoEmail.service";
+import {
+  sendAdminLoginOtpEmail,
+  sendAdminPasswordResetOtpEmail,
+} from "../services/brevoEmail.service";
 
 const createToken = (adminId: string, role: "super_admin" | "admin") => {
   return jwt.sign(
@@ -28,6 +31,21 @@ const hashOtp = (otp: string) => {
 };
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
+const getCooldownWaitSeconds = (lastSentAt?: Date) => {
+  if (!lastSentAt) {
+    return 0;
+  }
+
+  const cooldownMs = env.brevo.otpCooldownSeconds * 1000;
+  const elapsedMs = Date.now() - lastSentAt.getTime();
+
+  if (elapsedMs >= cooldownMs) {
+    return 0;
+  }
+
+  return Math.ceil((cooldownMs - elapsedMs) / 1000);
+};
 
 export const loginAdmin = async (
   req: Request,
@@ -76,18 +94,9 @@ export const loginAdmin = async (
       return;
     }
 
-    const now = new Date();
-    const cooldownMs = env.brevo.otpCooldownSeconds * 1000;
+    const waitSeconds = getCooldownWaitSeconds(admin.loginOtpLastSentAt);
 
-    if (
-      admin.loginOtpLastSentAt &&
-      now.getTime() - admin.loginOtpLastSentAt.getTime() < cooldownMs
-    ) {
-      const waitSeconds = Math.ceil(
-        (cooldownMs - (now.getTime() - admin.loginOtpLastSentAt.getTime())) /
-          1000
-      );
-
+    if (waitSeconds > 0) {
       res.status(429).json({
         success: false,
         message: `Please wait ${waitSeconds} seconds before requesting another OTP.`,
@@ -95,6 +104,7 @@ export const loginAdmin = async (
       return;
     }
 
+    const now = new Date();
     const otp = createOtp();
 
     admin.loginOtpHash = hashOtp(otp);
@@ -240,6 +250,209 @@ export const verifyAdminOtp = async (
     res.status(500).json({
       success: false,
       message: "OTP verification failed.",
+    });
+  }
+};
+
+export const requestAdminPasswordReset = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({
+        success: false,
+        message: "Email address is required.",
+      });
+      return;
+    }
+
+    const normalizedEmail = normalizeEmail(String(email));
+
+    const admin = await Admin.findOne({ email: normalizedEmail }).select(
+      "+resetOtpHash +resetOtpExpiresAt +resetOtpAttempts +resetOtpLastSentAt"
+    );
+
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "No admin account was found with this email address.",
+      });
+      return;
+    }
+
+    if (!admin.isActive) {
+      res.status(403).json({
+        success: false,
+        message: "This admin account is inactive.",
+      });
+      return;
+    }
+
+    const waitSeconds = getCooldownWaitSeconds(admin.resetOtpLastSentAt);
+
+    if (waitSeconds > 0) {
+      res.status(429).json({
+        success: false,
+        message: `Please wait ${waitSeconds} seconds before requesting another reset OTP.`,
+      });
+      return;
+    }
+
+    const now = new Date();
+    const otp = createOtp();
+
+    admin.resetOtpHash = hashOtp(otp);
+    admin.resetOtpExpiresAt = new Date(
+      now.getTime() + env.brevo.otpExpiryMinutes * 60 * 1000
+    );
+    admin.resetOtpAttempts = 0;
+    admin.resetOtpLastSentAt = now;
+
+    await admin.save();
+
+    await sendAdminPasswordResetOtpEmail({
+      to: admin.email,
+      name: admin.name,
+      otp,
+      expiryMinutes: env.brevo.otpExpiryMinutes,
+    });
+
+    res.status(200).json({
+      success: true,
+      requiresOtp: true,
+      message: "Password reset OTP has been sent to the admin email.",
+      email: admin.email,
+      expiresInMinutes: env.brevo.otpExpiryMinutes,
+    });
+  } catch (error) {
+    console.error("Admin password reset OTP error:", error);
+
+    res.status(500).json({
+      success: false,
+      message:
+        "Password reset verification could not be started. Please check Brevo configuration.",
+    });
+  }
+};
+
+export const resetAdminPassword = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      res.status(400).json({
+        success: false,
+        message: "Email, OTP, and new password are required.",
+      });
+      return;
+    }
+
+    const normalizedEmail = normalizeEmail(String(email));
+    const cleanOtp = String(otp).trim();
+    const cleanPassword = String(newPassword);
+
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      res.status(400).json({
+        success: false,
+        message: "OTP must be a 6-digit code.",
+      });
+      return;
+    }
+
+    if (cleanPassword.length < 6) {
+      res.status(400).json({
+        success: false,
+        message: "New password must be at least 6 characters long.",
+      });
+      return;
+    }
+
+    const admin = await Admin.findOne({ email: normalizedEmail }).select(
+      "+resetOtpHash +resetOtpExpiresAt +resetOtpAttempts +password"
+    );
+
+    if (!admin || !admin.isActive) {
+      res.status(401).json({
+        success: false,
+        message: "Invalid or expired password reset OTP.",
+      });
+      return;
+    }
+
+    if (!admin.resetOtpHash || !admin.resetOtpExpiresAt) {
+      res.status(401).json({
+        success: false,
+        message: "Invalid or expired password reset OTP.",
+      });
+      return;
+    }
+
+    if (admin.resetOtpExpiresAt.getTime() < Date.now()) {
+      admin.resetOtpHash = undefined;
+      admin.resetOtpExpiresAt = undefined;
+      admin.resetOtpAttempts = 0;
+      await admin.save();
+
+      res.status(401).json({
+        success: false,
+        message: "Password reset OTP has expired. Please request a new one.",
+      });
+      return;
+    }
+
+    if (admin.resetOtpAttempts >= env.brevo.otpMaxAttempts) {
+      admin.resetOtpHash = undefined;
+      admin.resetOtpExpiresAt = undefined;
+      admin.resetOtpAttempts = 0;
+      await admin.save();
+
+      res.status(429).json({
+        success: false,
+        message:
+          "Too many incorrect OTP attempts. Please request a new reset OTP.",
+      });
+      return;
+    }
+
+    const isOtpValid = hashOtp(cleanOtp) === admin.resetOtpHash;
+
+    if (!isOtpValid) {
+      admin.resetOtpAttempts += 1;
+      await admin.save();
+
+      res.status(401).json({
+        success: false,
+        message: "Invalid password reset OTP.",
+      });
+      return;
+    }
+
+    admin.password = cleanPassword;
+    admin.resetOtpHash = undefined;
+    admin.resetOtpExpiresAt = undefined;
+    admin.resetOtpAttempts = 0;
+    admin.loginOtpHash = undefined;
+    admin.loginOtpExpiresAt = undefined;
+    admin.loginOtpAttempts = 0;
+
+    await admin.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password has been reset successfully. Please login again.",
+    });
+  } catch (error) {
+    console.error("Admin password reset error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Password reset failed.",
     });
   }
 };
