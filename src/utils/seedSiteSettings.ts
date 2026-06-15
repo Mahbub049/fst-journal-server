@@ -49,6 +49,7 @@ export const seedSiteSettings = async () => {
     defaultSiteSettings.footerJournalSubtitle
   );
   patchIfMissing("publisherLabel", defaultSiteSettings.publisherLabel);
+  patchIfMissing("publisherName", defaultSiteSettings.publisherName);
   patchIfMissing("footerCreditText", defaultSiteSettings.footerCreditText);
   patchIfMissing("contactEmail", defaultSiteSettings.contactEmail);
 
@@ -65,13 +66,8 @@ export const seedSiteSettings = async () => {
     changed = true;
   }
 
-  if (
-    !settings.publisherName ||
-    settings.publisherName === "Bangladesh University of Professionals"
-  ) {
-    settings.publisherName = defaultSiteSettings.publisherName;
-    changed = true;
-  }
+  // Do not overwrite publisherName after admin changes it.
+  // Missing values are already handled by patchIfMissing above.
 
   const mergedLinks = mergeUsefulLinksWithDefaults(settings.usefulLinks as any[]);
   if (mergedLinks.length !== (settings.usefulLinks || []).length) {

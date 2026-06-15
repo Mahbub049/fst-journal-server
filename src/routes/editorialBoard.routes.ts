@@ -5,6 +5,7 @@ import {
   getAdminEditorialBoard,
   getAdminEditorialBoardById,
   getPublicEditorialBoard,
+  reorderAdminEditorialBoard,
   updateAdminEditorialBoard,
 } from "../controllers/editorialBoard.controller";
 import { protectAdmin } from "../middlewares/adminAuth.middleware";
@@ -14,6 +15,7 @@ const router = Router();
 router.get("/admin/all", protectAdmin, getAdminEditorialBoard);
 router.get("/admin/:id", protectAdmin, getAdminEditorialBoardById);
 router.post("/admin", protectAdmin, createAdminEditorialBoard);
+router.put("/admin/reorder", protectAdmin, reorderAdminEditorialBoard);
 router.put("/admin/:id", protectAdmin, updateAdminEditorialBoard);
 router.delete("/admin/:id", protectAdmin, deleteAdminEditorialBoard);
 

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import Admin from "../models/Admin.model";
+import Admin, { IAdmin } from "../models/Admin.model";
 import { env } from "../config/env";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 import {
@@ -45,6 +45,30 @@ const getCooldownWaitSeconds = (lastSentAt?: Date) => {
   }
 
   return Math.ceil((cooldownMs - elapsedMs) / 1000);
+};
+
+const sanitizeAdmin = (admin: IAdmin) => ({
+  id: String(admin._id),
+  _id: String(admin._id),
+  name: admin.name,
+  email: admin.email,
+  role: admin.role,
+  isActive: admin.isActive,
+  mustChangePassword: admin.mustChangePassword,
+  createdAt: admin.get("createdAt"),
+  updatedAt: admin.get("updatedAt"),
+});
+
+const ensureSuperAdmin = (req: AdminAuthRequest, res: Response) => {
+  if (req.admin?.role !== "super_admin") {
+    res.status(403).json({
+      success: false,
+      message: "Only a super admin can manage admin access.",
+    });
+    return false;
+  }
+
+  return true;
 };
 
 export const loginAdmin = async (
@@ -237,12 +261,7 @@ export const verifyAdminOtp = async (
       success: true,
       message: "Login successful.",
       token,
-      admin: {
-        id: String(admin._id),
-        name: admin.name,
-        email: admin.email,
-        role: admin.role,
-      },
+      admin: sanitizeAdmin(admin),
     });
   } catch (error) {
     console.error("Admin OTP verification error:", error);
@@ -434,6 +453,7 @@ export const resetAdminPassword = async (
     }
 
     admin.password = cleanPassword;
+    admin.mustChangePassword = false;
     admin.resetOtpHash = undefined;
     admin.resetOtpExpiresAt = undefined;
     admin.resetOtpAttempts = 0;
@@ -461,8 +481,433 @@ export const getAdminProfile = async (
   req: AdminAuthRequest,
   res: Response
 ): Promise<void> => {
-  res.status(200).json({
-    success: true,
-    admin: req.admin,
-  });
+  try {
+    const admin = await Admin.findById(req.admin?.id);
+
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "Admin profile was not found.",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      admin: sanitizeAdmin(admin),
+    });
+  } catch (error) {
+    console.error("Get admin profile error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Admin profile could not be loaded.",
+    });
+  }
+};
+
+export const updateAdminProfile = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { name, email } = req.body;
+
+    const cleanName = String(name || "").trim();
+    const cleanEmail = String(email || "").trim().toLowerCase();
+
+    if (!cleanName || !cleanEmail) {
+      res.status(400).json({
+        success: false,
+        message: "Name and email are required.",
+      });
+      return;
+    }
+
+    const emailPattern = /^\S+@\S+\.\S+$/;
+
+    if (!emailPattern.test(cleanEmail)) {
+      res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address.",
+      });
+      return;
+    }
+
+    const duplicate = await Admin.findOne({
+      email: cleanEmail,
+      _id: { $ne: req.admin?.id },
+    });
+
+    if (duplicate) {
+      res.status(409).json({
+        success: false,
+        message: "Another admin account already uses this email.",
+      });
+      return;
+    }
+
+    const admin = await Admin.findById(req.admin?.id);
+
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "Admin profile was not found.",
+      });
+      return;
+    }
+
+    admin.name = cleanName;
+    admin.email = cleanEmail;
+
+    await admin.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully.",
+      admin: sanitizeAdmin(admin),
+    });
+  } catch (error) {
+    console.error("Update admin profile error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Profile could not be updated.",
+    });
+  }
+};
+
+export const changeAdminPassword = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({
+        success: false,
+        message: "Current password and new password are required.",
+      });
+      return;
+    }
+
+    const cleanNewPassword = String(newPassword);
+
+    if (cleanNewPassword.length < 6) {
+      res.status(400).json({
+        success: false,
+        message: "New password must be at least 6 characters long.",
+      });
+      return;
+    }
+
+    const admin = await Admin.findById(req.admin?.id).select("+password");
+
+    if (!admin || !admin.isActive) {
+      res.status(404).json({
+        success: false,
+        message: "Admin profile was not found.",
+      });
+      return;
+    }
+
+    const isCurrentPasswordValid = await admin.comparePassword(
+      String(currentPassword)
+    );
+
+    if (!isCurrentPasswordValid) {
+      res.status(401).json({
+        success: false,
+        message: "Current password is incorrect.",
+      });
+      return;
+    }
+
+    admin.password = cleanNewPassword;
+    admin.mustChangePassword = false;
+    admin.loginOtpHash = undefined;
+    admin.loginOtpExpiresAt = undefined;
+    admin.loginOtpAttempts = 0;
+    admin.resetOtpHash = undefined;
+    admin.resetOtpExpiresAt = undefined;
+    admin.resetOtpAttempts = 0;
+
+    await admin.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password changed successfully.",
+      admin: sanitizeAdmin(admin),
+    });
+  } catch (error) {
+    console.error("Change admin password error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Password could not be changed.",
+    });
+  }
+};
+
+export const listAdmins = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!ensureSuperAdmin(req, res)) {
+      return;
+    }
+
+    const admins = await Admin.find().sort({ role: -1, createdAt: 1 });
+
+    res.status(200).json({
+      success: true,
+      admins: admins.map(sanitizeAdmin),
+    });
+  } catch (error) {
+    console.error("List admins error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Admin accounts could not be loaded.",
+    });
+  }
+};
+
+export const createAdminAccount = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!ensureSuperAdmin(req, res)) {
+      return;
+    }
+
+    const { name, email, temporaryPassword, role, isActive } = req.body;
+    const cleanName = String(name || "").trim();
+    const cleanEmail = normalizeEmail(String(email || ""));
+    const cleanPassword = String(temporaryPassword || "");
+    const cleanRole: "super_admin" | "admin" =
+      role === "super_admin" ? "super_admin" : "admin";
+
+    if (!cleanName || !cleanEmail || !cleanPassword) {
+      res.status(400).json({
+        success: false,
+        message: "Name, email, and temporary password are required.",
+      });
+      return;
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address.",
+      });
+      return;
+    }
+
+    if (cleanPassword.length < 6) {
+      res.status(400).json({
+        success: false,
+        message: "Temporary password must be at least 6 characters long.",
+      });
+      return;
+    }
+
+    const existingAdmin = await Admin.findOne({ email: cleanEmail });
+
+    if (existingAdmin) {
+      res.status(409).json({
+        success: false,
+        message: "An admin account already exists with this email.",
+      });
+      return;
+    }
+
+    const admin = await Admin.create({
+      name: cleanName,
+      email: cleanEmail,
+      password: cleanPassword,
+      role: cleanRole,
+      isActive: typeof isActive === "boolean" ? isActive : true,
+      mustChangePassword: true,
+    });
+
+    res.status(201).json({
+      success: true,
+      message:
+        "Admin access created. Share the temporary password securely and ask the admin to change it after login.",
+      admin: sanitizeAdmin(admin),
+    });
+  } catch (error) {
+    console.error("Create admin account error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Admin access could not be created.",
+    });
+  }
+};
+
+export const updateAdminAccount = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!ensureSuperAdmin(req, res)) {
+      return;
+    }
+
+    const { id } = req.params;
+    const { name, email, role, isActive, temporaryPassword } = req.body;
+
+    const admin = await Admin.findById(id).select("+password");
+
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "Admin account was not found.",
+      });
+      return;
+    }
+
+    if (email !== undefined) {
+      const cleanEmail = normalizeEmail(String(email));
+
+      if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+        res.status(400).json({
+          success: false,
+          message: "Please enter a valid email address.",
+        });
+        return;
+      }
+
+      const duplicate = await Admin.findOne({
+        email: cleanEmail,
+        _id: { $ne: admin._id },
+      });
+
+      if (duplicate) {
+        res.status(409).json({
+          success: false,
+          message: "Another admin account already uses this email.",
+        });
+        return;
+      }
+
+      admin.email = cleanEmail;
+    }
+
+    if (name !== undefined) {
+      const cleanName = String(name).trim();
+
+      if (!cleanName) {
+        res.status(400).json({
+          success: false,
+          message: "Name cannot be empty.",
+        });
+        return;
+      }
+
+      admin.name = cleanName;
+    }
+
+    if (role === "super_admin" || role === "admin") {
+      admin.role = role;
+    }
+
+    if (typeof isActive === "boolean") {
+      if (String(admin._id) === req.admin?.id && !isActive) {
+        res.status(400).json({
+          success: false,
+          message: "You cannot deactivate your own account.",
+        });
+        return;
+      }
+
+      admin.isActive = isActive;
+    }
+
+    if (temporaryPassword !== undefined && String(temporaryPassword).trim()) {
+      const cleanPassword = String(temporaryPassword);
+
+      if (cleanPassword.length < 6) {
+        res.status(400).json({
+          success: false,
+          message: "Temporary password must be at least 6 characters long.",
+        });
+        return;
+      }
+
+      admin.password = cleanPassword;
+      admin.mustChangePassword = true;
+      admin.loginOtpHash = undefined;
+      admin.loginOtpExpiresAt = undefined;
+      admin.loginOtpAttempts = 0;
+      admin.resetOtpHash = undefined;
+      admin.resetOtpExpiresAt = undefined;
+      admin.resetOtpAttempts = 0;
+    }
+
+    await admin.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Admin access updated successfully.",
+      admin: sanitizeAdmin(admin),
+    });
+  } catch (error) {
+    console.error("Update admin account error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Admin access could not be updated.",
+    });
+  }
+};
+
+export const deleteAdminAccount = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!ensureSuperAdmin(req, res)) {
+      return;
+    }
+
+    const { id } = req.params;
+
+    if (id === req.admin?.id) {
+      res.status(400).json({
+        success: false,
+        message: "You cannot delete your own account.",
+      });
+      return;
+    }
+
+    const admin = await Admin.findById(id);
+
+    if (!admin) {
+      res.status(404).json({
+        success: false,
+        message: "Admin account was not found.",
+      });
+      return;
+    }
+
+    await admin.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: "Admin access removed successfully.",
+    });
+  } catch (error) {
+    console.error("Delete admin account error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Admin access could not be removed.",
+    });
+  }
 };

@@ -1,4 +1,6 @@
 import { Response } from "express";
+import fs from "fs/promises";
+import path from "path";
 import Article from "../models/Article.model";
 import Issue from "../models/Issue.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
@@ -27,9 +29,32 @@ const normalizeStringArray = (value: any) => {
   return [];
 };
 
+const normalizePdfUrl = (value: any) => {
+  const pdfUrl = String(value || "").trim();
+
+  if (!pdfUrl) return "";
+
+  // If old/local uploads saved an absolute localhost backend URL,
+  // keep only the public file path so it works after deployment.
+  try {
+    const parsedUrl = new URL(pdfUrl);
+
+    if (
+      ["localhost", "127.0.0.1", "0.0.0.0"].includes(parsedUrl.hostname) &&
+      parsedUrl.pathname.startsWith("/pdfs/")
+    ) {
+      return parsedUrl.pathname;
+    }
+  } catch {
+    // Not an absolute URL. Keep it as it is.
+  }
+
+  return pdfUrl;
+};
+
 const normalizeArticlePayload = (body: Record<string, any>) => {
-  const title = body.title || "";
-  const slug = body.slug ? createSlug(body.slug) : createSlug(title);
+  const title = String(body.title || "").trim();
+  const slug = createSlug(title);
 
   return {
     issueId: body.issueId,
@@ -39,7 +64,7 @@ const normalizeArticlePayload = (body: Record<string, any>) => {
     abstract: body.abstract || "",
     keywords: normalizeStringArray(body.keywords),
     pages: body.pages || "",
-    pdfUrl: body.pdfUrl || "",
+    pdfUrl: normalizePdfUrl(body.pdfUrl),
 
     articleId: body.articleId || "",
     articleUrl: body.articleUrl || "",
@@ -57,6 +82,13 @@ const normalizeArticlePayload = (body: Record<string, any>) => {
     order: Number(body.order || 0),
     isPublished: body.isPublished ?? true,
   };
+};
+
+const buildLocalPdfFileName = (title: string, originalName: string) => {
+  const titleSlug = createSlug(title) || createSlug(originalName.replace(/\.pdf$/i, ""));
+  const safeName = titleSlug || "article-pdf";
+
+  return `${Date.now()}-${safeName}.pdf`;
 };
 
 export const getAdminArticles = async (
@@ -96,7 +128,7 @@ export const getAdminArticles = async (
 
     const articles = await Article.find(filter)
       .populate("issueId", "title slug volume issueNumber publishDateLabel")
-      .sort({ order: 1, createdAt: -1 });
+      .sort({ order: 1, createdAt: 1 });
 
     res.status(200).json({
       success: true,
@@ -144,6 +176,59 @@ export const getAdminArticleById = async (
   }
 };
 
+export const uploadAdminArticlePdf = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const file = req.file;
+
+    if (!file) {
+      res.status(400).json({
+        success: false,
+        message: "No PDF uploaded.",
+      });
+      return;
+    }
+
+    if (file.mimetype !== "application/pdf") {
+      res.status(400).json({
+        success: false,
+        message: "Only PDF files are allowed for article upload.",
+      });
+      return;
+    }
+
+    const title = String(req.body.title || file.originalname || "article-pdf");
+    const slug = String(req.body.slug || "");
+    const filename = buildLocalPdfFileName(slug || title, file.originalname);
+    const pdfDirectory = path.join(process.cwd(), "public", "pdfs", "articles");
+    const pdfPath = path.join(pdfDirectory, filename);
+
+    await fs.mkdir(pdfDirectory, { recursive: true });
+    await fs.writeFile(pdfPath, file.buffer);
+
+    // Store a relative URL in the database.
+    // This prevents localhost:5000 from being saved and keeps the link portable
+    // across localhost, VM IP, and the final domain.
+    const fileUrl = `/pdfs/articles/${filename}`;
+
+    res.status(201).json({
+      success: true,
+      message: "Article PDF uploaded locally successfully.",
+      fileUrl,
+      filename,
+    });
+  } catch (error) {
+    console.error("uploadAdminArticlePdf error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to upload article PDF.",
+    });
+  }
+};
+
 export const createAdminArticle = async (
   req: AdminAuthRequest,
   res: Response
@@ -180,7 +265,7 @@ export const createAdminArticle = async (
     if (!payload.slug.trim()) {
       res.status(400).json({
         success: false,
-        message: "Article slug is required.",
+        message: "Article slug could not be generated from the title.",
       });
       return;
     }
@@ -188,7 +273,7 @@ export const createAdminArticle = async (
     if (!payload.pdfUrl.trim()) {
       res.status(400).json({
         success: false,
-        message: "PDF URL is required.",
+        message: "PDF URL is required. Upload a local PDF or paste an external PDF link.",
       });
       return;
     }
@@ -201,12 +286,20 @@ export const createAdminArticle = async (
     if (duplicateArticle) {
       res.status(409).json({
         success: false,
-        message: "Another article with this slug already exists in this issue.",
+        message: "Another article with this title/slug already exists in this issue.",
       });
       return;
     }
 
-    const article = await Article.create(payload);
+    await Article.updateMany(
+      { issueId: payload.issueId },
+      { $inc: { order: 1 } }
+    );
+
+    const article = await Article.create({
+      ...payload,
+      order: 0,
+    });
 
     res.status(201).json({
       success: true,
@@ -269,7 +362,7 @@ export const updateAdminArticle = async (
     if (!payload.slug.trim()) {
       res.status(400).json({
         success: false,
-        message: "Article slug is required.",
+        message: "Article slug could not be generated from the title.",
       });
       return;
     }
@@ -277,7 +370,7 @@ export const updateAdminArticle = async (
     if (!payload.pdfUrl.trim()) {
       res.status(400).json({
         success: false,
-        message: "PDF URL is required.",
+        message: "PDF URL is required. Upload a local PDF or paste an external PDF link.",
       });
       return;
     }
@@ -291,9 +384,24 @@ export const updateAdminArticle = async (
     if (duplicateArticle) {
       res.status(409).json({
         success: false,
-        message: "Another article with this slug already exists in this issue.",
+        message: "Another article with this title/slug already exists in this issue.",
       });
       return;
+    }
+
+    const previousIssueId = String(article.issueId);
+    const nextIssueId = String(payload.issueId);
+
+    if (previousIssueId !== nextIssueId) {
+      await Article.updateMany(
+        {
+          issueId: payload.issueId,
+          _id: { $ne: article._id },
+        },
+        { $inc: { order: 1 } }
+      );
+
+      payload.order = 0;
     }
 
     article.set(payload);
@@ -310,6 +418,86 @@ export const updateAdminArticle = async (
     res.status(500).json({
       success: false,
       message: "Failed to update article.",
+    });
+  }
+};
+
+export const reorderAdminArticles = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const issueId = String(req.body.issueId || "");
+    const articleIds = Array.isArray(req.body.articleIds)
+      ? req.body.articleIds
+      : [];
+    const uniqueArticleIds = [
+      ...new Set(articleIds.map((id: any) => String(id))),
+    ];
+
+    if (!issueId) {
+      res.status(400).json({
+        success: false,
+        message: "Issue is required for article ordering.",
+      });
+      return;
+    }
+
+    if (uniqueArticleIds.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "Article order list is required.",
+      });
+      return;
+    }
+
+    const issue = await Issue.findById(issueId);
+
+    if (!issue) {
+      res.status(404).json({
+        success: false,
+        message: "Selected issue not found.",
+      });
+      return;
+    }
+
+    const existingCount = await Article.countDocuments({
+      issueId,
+      _id: { $in: uniqueArticleIds },
+    });
+
+    if (existingCount !== uniqueArticleIds.length) {
+      res.status(400).json({
+        success: false,
+        message: "One or more articles in the order list were not found in this issue.",
+      });
+      return;
+    }
+
+    await Article.bulkWrite(
+      uniqueArticleIds.map((id, index) => ({
+        updateOne: {
+          filter: { _id: id, issueId },
+          update: { $set: { order: index } },
+        },
+      }))
+    );
+
+    const articles = await Article.find({ issueId })
+      .populate("issueId", "title slug volume issueNumber publishDateLabel")
+      .sort({ order: 1, createdAt: 1 });
+
+    res.status(200).json({
+      success: true,
+      message: "Article order updated successfully.",
+      data: articles,
+    });
+  } catch (error) {
+    console.error("reorderAdminArticles error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update article order.",
     });
   }
 };

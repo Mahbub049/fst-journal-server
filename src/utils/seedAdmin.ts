@@ -17,6 +17,7 @@ export const seedAdmin = async () => {
       existingAdmin.password = initialPassword;
       existingAdmin.role = "super_admin";
       existingAdmin.isActive = true;
+      existingAdmin.mustChangePassword = false;
       existingAdmin.loginOtpHash = undefined;
       existingAdmin.loginOtpExpiresAt = undefined;
       existingAdmin.loginOtpAttempts = 0;
@@ -48,6 +49,7 @@ export const seedAdmin = async () => {
     password: initialPassword,
     role: "super_admin",
     isActive: true,
+    mustChangePassword: false,
   });
 
   console.log(`Initial admin created: ${email}`);

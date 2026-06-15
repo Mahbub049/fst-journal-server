@@ -18,10 +18,10 @@ const normalizeStringArray = (value: any) => {
 };
 
 const normalizeEditorPayload = (body: Record<string, any>) => {
-return {
-  category: body.category || "Editorial Board Member",
-  editorialArea: body.editorialArea || "General",
-  name: body.name || "",
+  const payload: Record<string, any> = {
+    category: body.category || "Editorial Board Member",
+    editorialArea: body.editorialArea || "General",
+    name: body.name || "",
     designation: body.designation || "",
     institution: body.institution || "",
     department: body.department || "",
@@ -29,9 +29,18 @@ return {
     profileImage: body.profileImage || "",
     bio: body.bio || "",
     email: body.email || "",
-    order: Number(body.order || 0),
     isActive: body.isActive ?? true,
   };
+
+  if (body.order !== undefined && body.order !== null && body.order !== "") {
+    payload.order = Number(body.order || 0);
+  }
+
+  return payload;
+};
+
+const getMemberCategory = (member: any) => {
+  return member?.category || "Editorial Board Member";
 };
 
 /* =========================
@@ -78,9 +87,9 @@ export const getAdminEditorialBoard = async (
       filter.category = category;
     }
 
-if (editorialArea && editorialArea !== "all") {
-  filter.editorialArea = editorialArea;
-}
+    if (editorialArea && editorialArea !== "all") {
+      filter.editorialArea = editorialArea;
+    }
 
     if (status === "active") {
       filter.isActive = true;
@@ -92,23 +101,23 @@ if (editorialArea && editorialArea !== "all") {
 
     if (search) {
       filter.$or = [
-{ name: { $regex: search, $options: "i" } },
-{ category: { $regex: search, $options: "i" } },
-{ editorialArea: { $regex: search, $options: "i" } },
-{ designation: { $regex: search, $options: "i" } },
-{ institution: { $regex: search, $options: "i" } },
-{ department: { $regex: search, $options: "i" } },
-{ expertise: { $regex: search, $options: "i" } },
-{ email: { $regex: search, $options: "i" } },
+        { name: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
+        { editorialArea: { $regex: search, $options: "i" } },
+        { designation: { $regex: search, $options: "i" } },
+        { institution: { $regex: search, $options: "i" } },
+        { department: { $regex: search, $options: "i" } },
+        { expertise: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
       ];
     }
 
     const editors = await EditorialBoard.find(filter).sort({
-  category: 1,
-  editorialArea: 1,
-  order: 1,
-  createdAt: -1,
-});
+      category: 1,
+      order: 1,
+      name: 1,
+      createdAt: -1,
+    });
 
     res.status(200).json({
       success: true,
@@ -177,14 +186,22 @@ export const createAdminEditorialBoard = async (
     }
 
     if (!payload.editorialArea.trim()) {
-  res.status(400).json({
-    success: false,
-    message: "Editorial area is required.",
-  });
-  return;
-}
+      res.status(400).json({
+        success: false,
+        message: "Editorial area is required.",
+      });
+      return;
+    }
 
-    const editor = await EditorialBoard.create(payload);
+    await EditorialBoard.updateMany(
+      { category: payload.category },
+      { $inc: { order: 1 } }
+    );
+
+    const editor = await EditorialBoard.create({
+      ...payload,
+      order: 0,
+    });
 
     res.status(201).json({
       success: true,
@@ -216,6 +233,7 @@ export const updateAdminEditorialBoard = async (
       return;
     }
 
+    const previousCategory = editor.category;
     const payload = normalizeEditorPayload(req.body);
 
     if (!payload.name.trim()) {
@@ -234,6 +252,27 @@ export const updateAdminEditorialBoard = async (
       return;
     }
 
+    if (!payload.editorialArea.trim()) {
+      res.status(400).json({
+        success: false,
+        message: "Editorial area is required.",
+      });
+      return;
+    }
+
+    if (payload.category !== previousCategory) {
+      await EditorialBoard.updateMany(
+        { category: payload.category, _id: { $ne: editor._id } },
+        { $inc: { order: 1 } }
+      );
+
+      payload.order = 0;
+    }
+
+    if (payload.order === undefined) {
+      delete payload.order;
+    }
+
     editor.set(payload);
     await editor.save();
 
@@ -248,6 +287,64 @@ export const updateAdminEditorialBoard = async (
     res.status(500).json({
       success: false,
       message: "Failed to update editorial board member.",
+    });
+  }
+};
+
+export const reorderAdminEditorialBoard = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const orderedIds = Array.isArray(req.body.orderedIds)
+      ? req.body.orderedIds.map((id: any) => String(id))
+      : [];
+
+    if (orderedIds.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "Editorial board order list is required.",
+      });
+      return;
+    }
+
+    const members = await EditorialBoard.find({ _id: { $in: orderedIds } });
+    const memberMap = new Map(members.map((member) => [String(member._id), member]));
+    const categoryCounters: Record<string, number> = {};
+
+    const bulkOperations = orderedIds
+      .map((id) => {
+        const member = memberMap.get(id);
+
+        if (!member) return null;
+
+        const category = getMemberCategory(member);
+        const nextOrder = categoryCounters[category] || 0;
+        categoryCounters[category] = nextOrder + 1;
+
+        return {
+          updateOne: {
+            filter: { _id: id },
+            update: { $set: { order: nextOrder } },
+          },
+        };
+      })
+      .filter(Boolean);
+
+    if (bulkOperations.length > 0) {
+      await EditorialBoard.bulkWrite(bulkOperations as any[]);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Editorial board display order updated successfully.",
+    });
+  } catch (error) {
+    console.error("reorderAdminEditorialBoard error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update editorial board display order.",
     });
   }
 };

@@ -12,6 +12,7 @@ import {
   getRecentIssues,
   trackArticleDownload,
   updateAdminIssue,
+  reorderAdminIssues,
 } from "../controllers/issue.controller";
 import { protectAdmin } from "../middlewares/adminAuth.middleware";
 
@@ -21,6 +22,7 @@ const router = Router();
 router.get("/admin/all", protectAdmin, getAdminIssues);
 router.get("/admin/:id", protectAdmin, getAdminIssueById);
 router.post("/admin", protectAdmin, createAdminIssue);
+router.patch("/admin/reorder", protectAdmin, reorderAdminIssues);
 router.put("/admin/:id", protectAdmin, updateAdminIssue);
 router.delete("/admin/:id", protectAdmin, deleteAdminIssue);
 

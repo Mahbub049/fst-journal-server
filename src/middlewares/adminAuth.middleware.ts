@@ -14,6 +14,8 @@ export interface AdminAuthRequest extends Request {
     name: string;
     email: string;
     role: "super_admin" | "admin";
+    isActive: boolean;
+    mustChangePassword: boolean;
   };
 }
 
@@ -52,6 +54,8 @@ export const protectAdmin = async (
       name: admin.name,
       email: admin.email,
       role: admin.role,
+      isActive: admin.isActive,
+      mustChangePassword: admin.mustChangePassword,
     };
 
     next();

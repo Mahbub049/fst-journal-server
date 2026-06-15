@@ -210,6 +210,7 @@ const createOrMigrateSiteSettings = async () => {
     defaultSiteSettings.footerJournalSubtitle
   );
   patchIfMissing("publisherLabel", defaultSiteSettings.publisherLabel);
+  patchIfMissing("publisherName", defaultSiteSettings.publisherName);
   patchIfMissing("footerCreditText", defaultSiteSettings.footerCreditText);
   patchIfMissing("contactEmail", defaultSiteSettings.contactEmail);
 
@@ -226,13 +227,10 @@ const createOrMigrateSiteSettings = async () => {
     changed = true;
   }
 
-  if (
-    !settings.publisherName ||
-    settings.publisherName === "Bangladesh University of Professionals"
-  ) {
-    settings.publisherName = defaultSiteSettings.publisherName;
-    changed = true;
-  }
+  // Do not overwrite publisherName after admin changes it.
+  // Older code treated "Bangladesh University of Professionals" as a legacy value
+  // and replaced it on every admin/public settings fetch, so the saved value
+  // appeared to revert after refresh. Missing values are already handled above.
 
   const mergedLinks = mergeUsefulLinksWithDefaults(settings.usefulLinks as any[]);
   if (mergedLinks.length !== (settings.usefulLinks || []).length) {

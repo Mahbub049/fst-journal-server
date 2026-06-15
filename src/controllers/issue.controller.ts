@@ -12,13 +12,34 @@ const createSlug = (text: string) => {
     .replace(/^-+|-+$/g, "");
 };
 
-const normalizeIssuePayload = (body: Record<string, any>) => {
-  const title = body.title || "";
-  const slug = body.slug ? createSlug(body.slug) : createSlug(title);
+const formatTwoDigitValue = (value: string) => {
+  const trimmed = value.trim();
+  const numericMatch = trimmed.match(/\d+/);
 
+  if (!numericMatch) {
+    return createSlug(trimmed);
+  }
+
+  return numericMatch[0].padStart(2, "0");
+};
+
+const createIssueSlug = (body: Record<string, any>) => {
+  const titleSlug = createSlug(body.title || "");
+  const volumeSlug = String(body.volume || "").trim()
+    ? `volume-${formatTwoDigitValue(String(body.volume || ""))}`
+    : "";
+  const issueSlug = String(body.issueNumber || "").trim()
+    ? `issue-${formatTwoDigitValue(String(body.issueNumber || ""))}`
+    : "";
+  const dateSlug = createSlug(body.publishDateLabel || "");
+
+  return [titleSlug, volumeSlug, issueSlug, dateSlug].filter(Boolean).join("-");
+};
+
+const normalizeIssuePayload = (body: Record<string, any>) => {
   return {
-    title,
-    slug,
+    title: body.title || "",
+    slug: createIssueSlug(body),
     category: body.category || "Research Article",
     issn: body.issn || "",
     volume: body.volume || "",
@@ -28,8 +49,24 @@ const normalizeIssuePayload = (body: Record<string, any>) => {
     pdfUrl: body.pdfUrl || "",
     isRecent: body.isRecent ?? true,
     isPublished: body.isPublished ?? true,
-    order: Number(body.order || 0),
   };
+};
+
+const normalizeIssueOrders = async () => {
+  const orderedIssues = await Issue.find({})
+    .sort({ order: 1, createdAt: -1 })
+    .select("_id");
+
+  if (orderedIssues.length === 0) return;
+
+  await Issue.bulkWrite(
+    orderedIssues.map((issue, index) => ({
+      updateOne: {
+        filter: { _id: issue._id },
+        update: { $set: { order: index } },
+      },
+    }))
+  );
 };
 
 /* =========================
@@ -255,11 +292,15 @@ export const trackArticleDownload = async (req: Request, res: Response) => {
     }
 
     const rawPdfUrl = article.pdfUrl.trim();
-    const fallbackBaseUrl = `${req.protocol}://${req.get("host")}`;
-    const refererBaseUrl = req.get("referer") || fallbackBaseUrl;
-    const redirectUrl = rawPdfUrl.startsWith("http")
+
+    // Absolute external URLs are redirected as-is.
+    // Relative local PDF URLs such as /pdfs/articles/file.pdf stay relative,
+    // so they resolve correctly under localhost, VM IP, or production domain.
+    const redirectUrl = /^https?:\/\//i.test(rawPdfUrl)
       ? rawPdfUrl
-      : new URL(rawPdfUrl, refererBaseUrl).toString();
+      : rawPdfUrl.startsWith("/")
+        ? rawPdfUrl
+        : `/${rawPdfUrl}`;
 
     return res.redirect(302, redirectUrl);
   } catch (error) {
@@ -495,7 +536,12 @@ export const createAdminIssue = async (
       return;
     }
 
-    const issue = await Issue.create(payload);
+    await Issue.updateMany({}, { $inc: { order: 1 } });
+
+    const issue = await Issue.create({
+      ...payload,
+      order: 0,
+    });
 
     res.status(201).json({
       success: true,
@@ -608,6 +654,64 @@ export const updateAdminIssue = async (
   }
 };
 
+
+export const reorderAdminIssues = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const issueIds = Array.isArray(req.body.issueIds) ? req.body.issueIds : [];
+    const uniqueIssueIds = [...new Set(issueIds.map((id: any) => String(id)))];
+
+    if (uniqueIssueIds.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "Issue order list is required.",
+      });
+      return;
+    }
+
+    const existingCount = await Issue.countDocuments({
+      _id: { $in: uniqueIssueIds },
+    });
+
+    if (existingCount !== uniqueIssueIds.length) {
+      res.status(400).json({
+        success: false,
+        message: "One or more issues in the order list were not found.",
+      });
+      return;
+    }
+
+    await Issue.bulkWrite(
+      uniqueIssueIds.map((id, index) => ({
+        updateOne: {
+          filter: { _id: id },
+          update: { $set: { order: index } },
+        },
+      }))
+    );
+
+    const issues = await Issue.find({}).sort({
+      order: 1,
+      createdAt: -1,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Issue display order updated successfully.",
+      data: issues,
+    });
+  } catch (error) {
+    console.error("reorderAdminIssues error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update issue display order.",
+    });
+  }
+};
+
 export const deleteAdminIssue = async (
   req: AdminAuthRequest,
   res: Response
@@ -637,6 +741,7 @@ export const deleteAdminIssue = async (
     }
 
     await issue.deleteOne();
+    await normalizeIssueOrders();
 
     res.status(200).json({
       success: true,

@@ -7,6 +7,7 @@ export interface IAdmin extends Document {
   password: string;
   role: "super_admin" | "admin";
   isActive: boolean;
+  mustChangePassword: boolean;
   loginOtpHash?: string;
   loginOtpExpiresAt?: Date;
   loginOtpAttempts: number;
@@ -50,6 +51,11 @@ const adminSchema = new Schema<IAdmin>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+
+    mustChangePassword: {
+      type: Boolean,
+      default: false,
     },
 
     loginOtpHash: {
