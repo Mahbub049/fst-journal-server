@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import fs from "fs/promises";
+import path from "path";
 import Issue from "../models/Issue.model";
 import Article from "../models/Article.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
@@ -34,6 +36,30 @@ const createIssueSlug = (body: Record<string, any>) => {
   const dateSlug = createSlug(body.publishDateLabel || "");
 
   return [titleSlug, volumeSlug, issueSlug, dateSlug].filter(Boolean).join("-");
+};
+
+
+const resolveLocalPdfPath = (pdfUrl: string) => {
+  const cleanedUrl = pdfUrl.split("?")[0].split("#")[0];
+
+  if (!cleanedUrl.startsWith("/pdfs/")) {
+    return null;
+  }
+
+  const relativePdfPath = cleanedUrl.replace(/^\/pdfs\//, "");
+  const normalizedRelativePath = path.normalize(relativePdfPath);
+
+  if (normalizedRelativePath.startsWith("..") || path.isAbsolute(normalizedRelativePath)) {
+    return null;
+  }
+
+  return path.join(process.cwd(), "public", "pdfs", normalizedRelativePath);
+};
+
+const getDownloadFileName = (articleTitle: string, pdfUrl: string) => {
+  const urlFileName = pdfUrl.split("?")[0].split("#")[0].split("/").pop();
+  const fallbackName = `${createSlug(articleTitle) || "article"}.pdf`;
+  return urlFileName || fallbackName;
 };
 
 const normalizeIssuePayload = (body: Record<string, any>) => {
@@ -293,16 +319,42 @@ export const trackArticleDownload = async (req: Request, res: Response) => {
 
     const rawPdfUrl = article.pdfUrl.trim();
 
-    // Absolute external URLs are redirected as-is.
-    // Relative local PDF URLs such as /pdfs/articles/file.pdf stay relative,
-    // so they resolve correctly under localhost, VM IP, or production domain.
-    const redirectUrl = /^https?:\/\//i.test(rawPdfUrl)
-      ? rawPdfUrl
-      : rawPdfUrl.startsWith("/")
-        ? rawPdfUrl
-        : `/${rawPdfUrl}`;
+    // External PDFs are still opened by redirecting to their original URL.
+    if (/^https?:\/\//i.test(rawPdfUrl)) {
+      return res.redirect(302, rawPdfUrl);
+    }
 
-    return res.redirect(302, redirectUrl);
+    // Local uploads are served directly from the backend download endpoint.
+    // This avoids redirecting the browser to /pdfs/..., which may be handled
+    // by the Next.js frontend on the live domain and cause a 404.
+    const localPdfPath = resolveLocalPdfPath(
+      rawPdfUrl.startsWith("/") ? rawPdfUrl : `/${rawPdfUrl}`
+    );
+
+    if (!localPdfPath) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid local PDF path",
+      });
+    }
+
+    try {
+      await fs.access(localPdfPath);
+    } catch {
+      return res.status(404).json({
+        success: false,
+        message: "PDF file was not found on the server",
+      });
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${getDownloadFileName(article.title, rawPdfUrl)}"`
+    );
+    res.setHeader("Cache-Control", "no-store");
+
+    return res.sendFile(localPdfPath);
   } catch (error) {
     console.error("trackArticleDownload error:", error);
     return res.status(500).json({

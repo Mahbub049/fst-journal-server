@@ -84,8 +84,30 @@ const normalizeArticlePayload = (body: Record<string, any>) => {
   };
 };
 
+const formatTwoDigitValue = (value: string) => {
+  const trimmed = value.trim();
+  const numericMatch = trimmed.match(/\d+/);
+
+  if (!numericMatch) {
+    return createSlug(trimmed) || "00";
+  }
+
+  return numericMatch[0].padStart(2, "0");
+};
+
+const buildIssuePdfFolderSegments = (issue: {
+  volume?: string;
+  issueNumber?: string;
+}) => {
+  const volumeSegment = `volume-${formatTwoDigitValue(String(issue.volume || ""))}`;
+  const issueSegment = `issue-${formatTwoDigitValue(String(issue.issueNumber || ""))}`;
+
+  return { volumeSegment, issueSegment };
+};
+
 const buildLocalPdfFileName = (title: string, originalName: string) => {
-  const titleSlug = createSlug(title) || createSlug(originalName.replace(/\.pdf$/i, ""));
+  const titleSlug =
+    createSlug(title) || createSlug(originalName.replace(/\.pdf$/i, ""));
   const safeName = titleSlug || "article-pdf";
 
   return `${Date.now()}-${safeName}.pdf`;
@@ -199,25 +221,57 @@ export const uploadAdminArticlePdf = async (
       return;
     }
 
+    const issueId = String(req.body.issueId || "").trim();
+
+    if (!issueId) {
+      res.status(400).json({
+        success: false,
+        message: "Please select an issue before uploading the article PDF.",
+      });
+      return;
+    }
+
+    const issue = await Issue.findById(issueId).select(
+      "title volume issueNumber publishDateLabel"
+    );
+
+    if (!issue) {
+      res.status(404).json({
+        success: false,
+        message: "Selected issue not found. Please refresh and try again.",
+      });
+      return;
+    }
+
     const title = String(req.body.title || file.originalname || "article-pdf");
     const slug = String(req.body.slug || "");
     const filename = buildLocalPdfFileName(slug || title, file.originalname);
-    const pdfDirectory = path.join(process.cwd(), "public", "pdfs", "articles");
+    const { volumeSegment, issueSegment } = buildIssuePdfFolderSegments(issue);
+
+    const pdfDirectory = path.join(
+      process.cwd(),
+      "public",
+      "pdfs",
+      "articles",
+      volumeSegment,
+      issueSegment
+    );
     const pdfPath = path.join(pdfDirectory, filename);
 
     await fs.mkdir(pdfDirectory, { recursive: true });
     await fs.writeFile(pdfPath, file.buffer);
 
     // Store a relative URL in the database.
-    // This prevents localhost:5000 from being saved and keeps the link portable
-    // across localhost, VM IP, and the final domain.
-    const fileUrl = `/pdfs/articles/${filename}`;
+    // Example: /pdfs/articles/volume-03/issue-01/article.pdf
+    // This keeps links portable across localhost, VM IP, and final domain.
+    const fileUrl = `/pdfs/articles/${volumeSegment}/${issueSegment}/${filename}`;
 
     res.status(201).json({
       success: true,
       message: "Article PDF uploaded locally successfully.",
       fileUrl,
       filename,
+      folder: `public/pdfs/articles/${volumeSegment}/${issueSegment}`,
     });
   } catch (error) {
     console.error("uploadAdminArticlePdf error:", error);

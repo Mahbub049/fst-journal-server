@@ -14,15 +14,29 @@ const app = express();
 
 let isDatabaseReady = false;
 
-const allowedOrigins = [
-  env.clientUrl,
-  "http://localhost:3000",
-  "http://localhost:3001",
-].filter(Boolean);
+const allowedOrigins = Array.from(
+  new Set([
+    ...env.clientUrls,
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://103.121.194.11",
+    "http://ijfst.bup.edu.bd",
+    "https://ijfst.bup.edu.bd",
+    "http://jfst.bup.edu.bd",
+    "https://jfst.bup.edu.bd",
+  ].filter(Boolean))
+);
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );

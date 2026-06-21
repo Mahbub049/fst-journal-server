@@ -17,6 +17,11 @@ export const env = {
 
   clientUrl: process.env.CLIENT_URL || "http://localhost:3000",
 
+  clientUrls: (process.env.CLIENT_URLS || process.env.CLIENT_URL || "http://localhost:3000")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean),
+
   admin: {
     name: process.env.ADMIN_NAME || "Admin",
     email: process.env.ADMIN_EMAIL || "admin@bupfstjournal.com",
