@@ -95,6 +95,29 @@ export const defaultUsefulLinks = [
   },
 ];
 
+export const defaultAnnouncementItems = [
+  {
+    text: "Welcome to the official website of Journal of FST",
+    order: 1,
+    isActive: true,
+  },
+  {
+    text: "Call for Papers is now open",
+    order: 2,
+    isActive: true,
+  },
+  {
+    text: "Submit your research manuscript through the online submission system",
+    order: 3,
+    isActive: true,
+  },
+  {
+    text: "Explore current and archived issues of the journal",
+    order: 4,
+    isActive: true,
+  },
+];
+
 export const defaultSiteSettings = {
   footerJournalTitle: "Journal of FST",
   footerJournalSubtitle: "Bangladesh University of Professionals",
@@ -114,6 +137,8 @@ export const defaultSiteSettings = {
   publishingModel: "Hybrid",
   language: "English",
   publicationFrequency: "Annual",
+
+  announcementItems: defaultAnnouncementItems,
 
   usefulLinks: defaultUsefulLinks,
   socialLinks: [],
@@ -140,6 +165,16 @@ const mergeUsefulLinksWithDefaults = (links: any[] = []) => {
     }));
 };
 
+const normalizeAnnouncementItems = (items: any[] = []) => {
+  return (Array.isArray(items) ? items : [])
+    .map((item, index) => ({
+      text: String(item.text || "").trim(),
+      order: Number(item.order ?? index + 1),
+      isActive: item.isActive ?? true,
+    }))
+    .filter((item) => item.text);
+};
+
 const normalizeSiteSettingsPayload = (body: Record<string, any>) => {
   return {
     footerJournalTitle:
@@ -163,6 +198,10 @@ const normalizeSiteSettingsPayload = (body: Record<string, any>) => {
     language: body.language || defaultSiteSettings.language,
     publicationFrequency:
       body.publicationFrequency || defaultSiteSettings.publicationFrequency,
+
+    announcementItems: Array.isArray(body.announcementItems)
+      ? normalizeAnnouncementItems(body.announcementItems)
+      : defaultAnnouncementItems,
 
     usefulLinks: Array.isArray(body.usefulLinks)
       ? body.usefulLinks.map((item: any, index: number) => ({
@@ -213,6 +252,11 @@ const createOrMigrateSiteSettings = async () => {
   patchIfMissing("publisherName", defaultSiteSettings.publisherName);
   patchIfMissing("footerCreditText", defaultSiteSettings.footerCreditText);
   patchIfMissing("contactEmail", defaultSiteSettings.contactEmail);
+
+  if (!Array.isArray((settings as any).announcementItems)) {
+    (settings as any).announcementItems = defaultAnnouncementItems;
+    changed = true;
+  }
 
   if (
     settings.footerDescription === legacyFooterDescription ||

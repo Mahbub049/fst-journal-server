@@ -15,6 +15,12 @@ export interface ISocialLink {
   isActive: boolean;
 }
 
+export interface IAnnouncementItem {
+  text: string;
+  order: number;
+  isActive: boolean;
+}
+
 export interface ISiteSettings extends Document {
   footerJournalTitle: string;
   footerJournalSubtitle: string;
@@ -32,6 +38,8 @@ export interface ISiteSettings extends Document {
   publishingModel: string;
   language: string;
   publicationFrequency: string;
+
+  announcementItems: IAnnouncementItem[];
 
   usefulLinks: IUsefulLink[];
   socialLinks: ISocialLink[];
@@ -76,6 +84,25 @@ const socialLinkSchema = new Schema<ISocialLink>(
       trim: true,
     },
     url: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    order: {
+      type: Number,
+      default: 0,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: true }
+);
+
+const announcementItemSchema = new Schema<IAnnouncementItem>(
+  {
+    text: {
       type: String,
       required: true,
       trim: true,
@@ -180,6 +207,32 @@ const siteSettingsSchema = new Schema<ISiteSettings>(
       type: String,
       default: "Annual",
       trim: true,
+    },
+
+    announcementItems: {
+      type: [announcementItemSchema],
+      default: [
+        {
+          text: "Welcome to the official website of Journal of FST",
+          order: 1,
+          isActive: true,
+        },
+        {
+          text: "Call for Papers is now open",
+          order: 2,
+          isActive: true,
+        },
+        {
+          text: "Submit your research manuscript through the online submission system",
+          order: 3,
+          isActive: true,
+        },
+        {
+          text: "Explore current and archived issues of the journal",
+          order: 4,
+          isActive: true,
+        },
+      ],
     },
 
     usefulLinks: {

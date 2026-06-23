@@ -1,5 +1,9 @@
 import SiteSettings from "../models/SiteSettings.model";
-import { defaultSiteSettings, defaultUsefulLinks } from "../controllers/siteSettings.controller";
+import {
+  defaultAnnouncementItems,
+  defaultSiteSettings,
+  defaultUsefulLinks,
+} from "../controllers/siteSettings.controller";
 
 const legacyFooterDescription =
   "BUP Faculty of Science and Technology Journal publishes scholarly research in science, technology, engineering, and interdisciplinary areas.";
@@ -52,6 +56,11 @@ export const seedSiteSettings = async () => {
   patchIfMissing("publisherName", defaultSiteSettings.publisherName);
   patchIfMissing("footerCreditText", defaultSiteSettings.footerCreditText);
   patchIfMissing("contactEmail", defaultSiteSettings.contactEmail);
+
+  if (!Array.isArray((settings as any).announcementItems)) {
+    (settings as any).announcementItems = defaultAnnouncementItems;
+    changed = true;
+  }
 
   if (
     settings.footerDescription === legacyFooterDescription ||
