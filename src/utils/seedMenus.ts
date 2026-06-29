@@ -414,7 +414,7 @@ export const seedMenus = async () => {
   const rootMap = new Map<string, any>();
 
   for (const menu of rootMenus) {
-    let existingMenu = await cleanupDuplicateRootMenus(menu);
+    let existingMenu: any = await cleanupDuplicateRootMenus(menu);
 
     if (!existingMenu) {
       existingMenu = await findExistingRootMenu(menu);
@@ -454,7 +454,7 @@ export const seedMenus = async () => {
     );
 
     for (const menu of menus) {
-      let existingMenu = await cleanupDuplicateChildMenus(parentMenu._id, menu);
+      let existingMenu: any = await cleanupDuplicateChildMenus(parentMenu._id, menu);
 
       if (!existingMenu) {
         existingMenu = await Menu.findOne({

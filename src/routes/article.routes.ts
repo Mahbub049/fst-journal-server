@@ -5,6 +5,8 @@ import {
   getAdminArticleById,
   getAdminArticles,
   reorderAdminArticles,
+  syncAdminAllArticleCitations,
+  syncAdminArticleCitation,
   updateAdminArticle,
   uploadAdminArticlePdf,
 } from "../controllers/article.controller";
@@ -15,7 +17,9 @@ const router = Router();
 
 router.get("/admin/all", protectAdmin, getAdminArticles);
 router.post("/admin/upload-pdf", protectAdmin, uploadSingleFile, uploadAdminArticlePdf);
+router.post("/admin/sync-citations", protectAdmin, syncAdminAllArticleCitations);
 router.patch("/admin/reorder", protectAdmin, reorderAdminArticles);
+router.post("/admin/:id/sync-citation", protectAdmin, syncAdminArticleCitation);
 router.get("/admin/:id", protectAdmin, getAdminArticleById);
 router.post("/admin", protectAdmin, createAdminArticle);
 router.put("/admin/:id", protectAdmin, updateAdminArticle);

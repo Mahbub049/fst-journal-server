@@ -313,7 +313,7 @@ export const reorderAdminEditorialBoard = async (
     const categoryCounters: Record<string, number> = {};
 
     const bulkOperations = orderedIds
-      .map((id) => {
+      .map((id: string) => {
         const member = memberMap.get(id);
 
         if (!member) return null;

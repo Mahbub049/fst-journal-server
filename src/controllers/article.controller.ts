@@ -4,6 +4,10 @@ import path from "path";
 import Article from "../models/Article.model";
 import Issue from "../models/Issue.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
+import {
+  syncAllArticleCitations,
+  syncArticleCitationById,
+} from "../services/citationSync.service";
 
 const createSlug = (text: string) => {
   return text
@@ -74,6 +78,11 @@ const normalizeArticlePayload = (body: Record<string, any>) => {
     views: Number(body.views || 0),
     downloads: Number(body.downloads || 0),
     citations: Number(body.citations || 0),
+    citationSyncEnabled: body.citationSyncEnabled ?? true,
+    citationSource: body.citationSource || "manual",
+    citationSourceId: body.citationSourceId || "",
+    citationSyncStatus: body.citationSyncStatus || "idle",
+    citationSyncMessage: body.citationSyncMessage || "",
 
     status: body.status || "published",
     articleType: body.articleType || "Research Article",
@@ -485,9 +494,9 @@ export const reorderAdminArticles = async (
     const articleIds = Array.isArray(req.body.articleIds)
       ? req.body.articleIds
       : [];
-    const uniqueArticleIds = [
-      ...new Set(articleIds.map((id: any) => String(id))),
-    ];
+    const uniqueArticleIds: string[] = Array.from(
+      new Set(articleIds.map((id: any) => String(id)))
+    );
 
     if (!issueId) {
       res.status(400).json({
@@ -552,6 +561,60 @@ export const reorderAdminArticles = async (
     res.status(500).json({
       success: false,
       message: "Failed to update article order.",
+    });
+  }
+};
+
+export const syncAdminArticleCitation = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const articleId = String(req.params.id);
+    const result = await syncArticleCitationById(articleId);
+    const article = await Article.findById(articleId).populate(
+      "issueId",
+      "title slug volume issueNumber publishDateLabel"
+    );
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      data: article,
+      sync: result,
+    });
+  } catch (error: any) {
+    console.error("syncAdminArticleCitation error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error?.message || "Failed to sync article citation.",
+    });
+  }
+};
+
+export const syncAdminAllArticleCitations = async (
+  _req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const summary = await syncAllArticleCitations();
+    const articles = await Article.find({})
+      .populate("issueId", "title slug volume issueNumber publishDateLabel")
+      .sort({ order: 1, createdAt: 1 });
+
+    res.status(200).json({
+      success: true,
+      message: `Citation sync completed for ${summary.total} article(s).`,
+      data: articles,
+      sync: summary,
+    });
+  } catch (error: any) {
+    console.error("syncAdminAllArticleCitations error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error?.message || "Failed to sync citation counts.",
     });
   }
 };

@@ -17,6 +17,12 @@ export interface IArticle extends Document {
   views: number;
   downloads: number;
   citations: number;
+  citationSyncEnabled: boolean;
+  citationSource: "manual" | "OpenAlex" | "Crossref";
+  citationSourceId: string;
+  citationLastSyncedAt?: Date | null;
+  citationSyncStatus: "idle" | "success" | "failed" | "skipped";
+  citationSyncMessage: string;
   status: "published" | "inPress";
   articleType: string;
   accessType: string;
@@ -95,6 +101,34 @@ const ArticleSchema = new Schema<IArticle>(
     citations: {
       type: Number,
       default: 0,
+    },
+    citationSyncEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    citationSource: {
+      type: String,
+      enum: ["manual", "OpenAlex", "Crossref"],
+      default: "manual",
+    },
+    citationSourceId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    citationLastSyncedAt: {
+      type: Date,
+      default: null,
+    },
+    citationSyncStatus: {
+      type: String,
+      enum: ["idle", "success", "failed", "skipped"],
+      default: "idle",
+    },
+    citationSyncMessage: {
+      type: String,
+      default: "",
+      trim: true,
     },
     status: {
       type: String,

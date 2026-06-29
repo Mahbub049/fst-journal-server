@@ -9,17 +9,32 @@ import {
   sendAdminPasswordResetOtpEmail,
 } from "../services/brevoEmail.service";
 
-const createToken = (adminId: string, role: "super_admin" | "admin") => {
+const createToken = (
+  adminId: string,
+  role: "super_admin" | "admin",
+  sessionSecret: string
+) => {
   return jwt.sign(
     {
       id: adminId,
       role,
+      sid: sessionSecret,
     },
     env.jwtSecret,
     {
       expiresIn: "7d",
     }
   );
+};
+
+const createSessionSecret = () => crypto.randomBytes(32).toString("hex");
+
+const getAdminSessionExpiry = () => {
+  return new Date(Date.now() + env.admin.sessionIdleMinutes * 60 * 1000);
+};
+
+const hashSessionSecret = (sessionSecret: string) => {
+  return crypto.createHash("sha256").update(sessionSecret).digest("hex");
 };
 
 const createOtp = () => {
@@ -250,12 +265,18 @@ export const verifyAdminOtp = async (
       return;
     }
 
+    const sessionSecret = createSessionSecret();
+
     admin.loginOtpHash = undefined;
     admin.loginOtpExpiresAt = undefined;
     admin.loginOtpAttempts = 0;
+    admin.activeSessionHash = hashSessionSecret(sessionSecret);
+    admin.activeSessionExpiresAt = getAdminSessionExpiry();
+    admin.lastActiveAt = new Date();
+
     await admin.save();
 
-    const token = createToken(String(admin._id), admin.role);
+    const token = createToken(String(admin._id), admin.role, sessionSecret);
 
     res.status(200).json({
       success: true,
@@ -460,6 +481,9 @@ export const resetAdminPassword = async (
     admin.loginOtpHash = undefined;
     admin.loginOtpExpiresAt = undefined;
     admin.loginOtpAttempts = 0;
+    admin.activeSessionHash = undefined;
+    admin.activeSessionExpiresAt = undefined;
+    admin.lastActiveAt = undefined;
 
     await admin.save();
 
@@ -473,6 +497,34 @@ export const resetAdminPassword = async (
     res.status(500).json({
       success: false,
       message: "Password reset failed.",
+    });
+  }
+};
+
+
+export const logoutAdmin = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    await Admin.findByIdAndUpdate(req.admin?.id, {
+      $unset: {
+        activeSessionHash: "",
+        activeSessionExpiresAt: "",
+        lastActiveAt: "",
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Logged out successfully.",
+    });
+  } catch (error) {
+    console.error("Admin logout error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Logout failed.",
     });
   }
 };
@@ -848,6 +900,15 @@ export const updateAdminAccount = async (
       admin.resetOtpHash = undefined;
       admin.resetOtpExpiresAt = undefined;
       admin.resetOtpAttempts = 0;
+      admin.activeSessionHash = undefined;
+      admin.activeSessionExpiresAt = undefined;
+      admin.lastActiveAt = undefined;
+    }
+
+    if (typeof isActive === "boolean" && !isActive) {
+      admin.activeSessionHash = undefined;
+      admin.activeSessionExpiresAt = undefined;
+      admin.lastActiveAt = undefined;
     }
 
     await admin.save();

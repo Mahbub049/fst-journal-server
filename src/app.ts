@@ -9,6 +9,7 @@ import { seedPages } from "./utils/seedPages";
 import { seedHomepage } from "./utils/seedHomepage";
 import { seedMenus } from "./utils/seedMenus";
 import { seedSiteSettings } from "./utils/seedSiteSettings";
+import { startCitationSyncScheduler } from "./services/citationScheduler.service";
 
 const app = express();
 
@@ -65,6 +66,7 @@ app.use(async (_req: Request, _res: Response, next: NextFunction) => {
       await seedHomepage();
       await seedMenus();
       await seedSiteSettings();
+      startCitationSyncScheduler();
 
       isDatabaseReady = true;
     }

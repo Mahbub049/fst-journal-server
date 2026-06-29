@@ -379,6 +379,17 @@ export const getHomeArticles = async (req: Request, res: Response) => {
 
     if (tab === "latest") {
       filter.status = "published";
+
+      const latestIssue = await Issue.findOne({
+        isPublished: true,
+      })
+        .sort({ order: 1, createdAt: -1 })
+        .select("_id");
+
+      if (latestIssue) {
+        filter.issueId = latestIssue._id;
+      }
+
       sort = {
         order: 1,
         createdAt: -1,
@@ -394,13 +405,14 @@ export const getHomeArticles = async (req: Request, res: Response) => {
 
     if (tab === "topCited") {
       filter.status = "published";
+
       sort = {
         citations: -1,
         views: -1,
+        downloads: -1,
         createdAt: -1,
       };
     }
-
     if (tab === "mostDownloaded") {
       filter.status = "published";
       sort = {
@@ -713,7 +725,9 @@ export const reorderAdminIssues = async (
 ): Promise<void> => {
   try {
     const issueIds = Array.isArray(req.body.issueIds) ? req.body.issueIds : [];
-    const uniqueIssueIds = [...new Set(issueIds.map((id: any) => String(id)))];
+    const uniqueIssueIds: string[] = Array.from(
+      new Set(issueIds.map((id: any) => String(id)))
+    );
 
     if (uniqueIssueIds.length === 0) {
       res.status(400).json({

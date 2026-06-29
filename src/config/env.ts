@@ -26,6 +26,7 @@ export const env = {
     name: process.env.ADMIN_NAME || "Admin",
     email: process.env.ADMIN_EMAIL || "admin@bupfstjournal.com",
     initialPassword: process.env.ADMIN_INITIAL_PASSWORD || "",
+    sessionIdleMinutes: Number(process.env.ADMIN_SESSION_IDLE_MINUTES || 60),
   },
 
   brevo: {
@@ -41,5 +42,14 @@ export const env = {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || "your_cloud_name",
     apiKey: process.env.CLOUDINARY_API_KEY || "your_api_key",
     apiSecret: process.env.CLOUDINARY_API_SECRET || "your_api_secret",
+  },
+
+  citationSync: {
+    enabled: process.env.CITATION_SYNC_ENABLED !== "false",
+    intervalHours: Number(process.env.CITATION_SYNC_INTERVAL_HOURS || 24),
+    startupDelayMinutes: Number(
+      process.env.CITATION_SYNC_STARTUP_DELAY_MINUTES || 10
+    ),
+    mailto: process.env.CITATION_SYNC_MAILTO || "",
   },
 };

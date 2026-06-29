@@ -27,7 +27,7 @@ const getBupLogoUrl = () => {
     return "";
   }
 
-  return `${clientUrl}/images/bup.png`;
+  return `${clientUrl}/images/bup-email-logo.png`;
 };
 
 export const sendBrevoEmail = async ({
@@ -93,9 +93,13 @@ const buildOtpEmailHtml = ({
 
   const logoHtml = logoUrl
     ? `
-      <div style="margin: 0 auto 14px; height: 74px; width: 74px; border-radius: 999px; background: #ffffff; border: 1px solid #dbe7ed; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.10); text-align: center; line-height: 74px;">
-        <img src="${logoUrl}" width="54" height="54" alt="BUP Logo" style="display: inline-block; vertical-align: middle; height: 54px; width: 54px; object-fit: contain; border: 0; outline: none; text-decoration: none;" />
-      </div>
+      <table role="presentation" align="center" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto 14px; border-collapse: collapse;">
+        <tr>
+          <td width="74" height="74" align="center" valign="middle" style="width: 74px; height: 74px; padding: 0; line-height: 0; font-size: 0;">
+            <img src="${logoUrl}" width="74" height="74" alt="BUP Logo" style="display: block; width: 74px !important; height: 74px !important; max-width: 74px; max-height: 74px; margin: 0 auto; border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic;" />
+          </td>
+        </tr>
+      </table>
     `
     : "";
 
@@ -105,6 +109,8 @@ const buildOtpEmailHtml = ({
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light only" />
+        <meta name="supported-color-schemes" content="light only" />
         <title>${safeHeading}</title>
       </head>
       <body style="margin: 0; padding: 0; background: #edf7f9; font-family: Arial, Helvetica, sans-serif; color: #0f172a;">

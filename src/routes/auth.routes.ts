@@ -6,6 +6,7 @@ import {
   getAdminProfile,
   listAdmins,
   loginAdmin,
+  logoutAdmin,
   requestAdminPasswordReset,
   resetAdminPassword,
   updateAdminAccount,
@@ -20,6 +21,7 @@ router.post("/login", loginAdmin);
 router.post("/verify-otp", verifyAdminOtp);
 router.post("/forgot-password", requestAdminPasswordReset);
 router.post("/reset-password", resetAdminPassword);
+router.post("/logout", protectAdmin, logoutAdmin);
 
 router.get("/me", protectAdmin, getAdminProfile);
 router.patch("/me", protectAdmin, updateAdminProfile);
