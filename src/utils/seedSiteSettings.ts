@@ -56,6 +56,10 @@ export const seedSiteSettings = async () => {
   patchIfMissing("publisherName", defaultSiteSettings.publisherName);
   patchIfMissing("footerCreditText", defaultSiteSettings.footerCreditText);
   patchIfMissing("contactEmail", defaultSiteSettings.contactEmail);
+  patchIfMissing(
+    "announcementSpeedSeconds",
+    defaultSiteSettings.announcementSpeedSeconds
+  );
 
   if (!Array.isArray((settings as any).announcementItems)) {
     (settings as any).announcementItems = defaultAnnouncementItems;

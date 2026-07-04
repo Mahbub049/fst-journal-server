@@ -98,21 +98,25 @@ export const defaultUsefulLinks = [
 export const defaultAnnouncementItems = [
   {
     text: "Welcome to the official website of Journal of FST",
+    url: "",
     order: 1,
     isActive: true,
   },
   {
     text: "Call for Papers is now open",
+    url: "/call-for-papers",
     order: 2,
     isActive: true,
   },
   {
     text: "Submit your research manuscript through the online submission system",
+    url: "/submit-manuscript-portal",
     order: 3,
     isActive: true,
   },
   {
     text: "Explore current and archived issues of the journal",
+    url: "/issues/archive",
     order: 4,
     isActive: true,
   },
@@ -139,6 +143,7 @@ export const defaultSiteSettings = {
   publicationFrequency: "Annual",
 
   announcementItems: defaultAnnouncementItems,
+  announcementSpeedSeconds: 100,
 
   usefulLinks: defaultUsefulLinks,
   socialLinks: [],
@@ -165,10 +170,21 @@ const mergeUsefulLinksWithDefaults = (links: any[] = []) => {
     }));
 };
 
+const normalizeAnnouncementSpeedSeconds = (value: any) => {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return defaultSiteSettings.announcementSpeedSeconds;
+  }
+
+  return Math.min(Math.max(Math.round(numericValue), 10), 300);
+};
+
 const normalizeAnnouncementItems = (items: any[] = []) => {
   return (Array.isArray(items) ? items : [])
     .map((item, index) => ({
       text: String(item.text || "").trim(),
+      url: String(item.url || item.linkUrl || item.href || "").trim(),
       order: Number(item.order ?? index + 1),
       isActive: item.isActive ?? true,
     }))
@@ -202,6 +218,9 @@ const normalizeSiteSettingsPayload = (body: Record<string, any>) => {
     announcementItems: Array.isArray(body.announcementItems)
       ? normalizeAnnouncementItems(body.announcementItems)
       : defaultAnnouncementItems,
+    announcementSpeedSeconds: normalizeAnnouncementSpeedSeconds(
+      body.announcementSpeedSeconds
+    ),
 
     usefulLinks: Array.isArray(body.usefulLinks)
       ? body.usefulLinks.map((item: any, index: number) => ({
@@ -252,6 +271,10 @@ const createOrMigrateSiteSettings = async () => {
   patchIfMissing("publisherName", defaultSiteSettings.publisherName);
   patchIfMissing("footerCreditText", defaultSiteSettings.footerCreditText);
   patchIfMissing("contactEmail", defaultSiteSettings.contactEmail);
+  patchIfMissing(
+    "announcementSpeedSeconds",
+    defaultSiteSettings.announcementSpeedSeconds
+  );
 
   if (!Array.isArray((settings as any).announcementItems)) {
     (settings as any).announcementItems = defaultAnnouncementItems;
