@@ -227,7 +227,7 @@ const normalizeSiteSettingsPayload = (body: Record<string, any>) => {
 };
 
 const createOrMigrateSiteSettings = async () => {
-  let settings = await SiteSettings.findOne();
+  let settings = await SiteSettings.findOne().sort({ updatedAt: -1, createdAt: -1 });
 
   if (!settings) {
     return SiteSettings.create(defaultSiteSettings);
@@ -294,17 +294,14 @@ export const getPublicSiteSettings = async (
   res: Response
 ): Promise<void> => {
   try {
-    const settings = await SiteSettings.findOne({ isPublished: true }).select(
-      "-__v"
-    );
+    const settings = await createOrMigrateSiteSettings();
 
-    if (!settings) {
-      res.status(200).json({
-        success: true,
-        data: defaultSiteSettings,
-      });
-      return;
-    }
+    res.set({
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+      "Surrogate-Control": "no-store",
+    });
 
     res.status(200).json({
       success: true,
@@ -327,6 +324,13 @@ export const getAdminSiteSettings = async (
   try {
     const settings = await createOrMigrateSiteSettings();
 
+    res.set({
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+      "Surrogate-Control": "no-store",
+    });
+
     res.status(200).json({
       success: true,
       data: settings,
@@ -348,14 +352,26 @@ export const updateAdminSiteSettings = async (
   try {
     const payload = normalizeSiteSettingsPayload(req.body);
 
-    let settings = await SiteSettings.findOne();
+    let settings = await SiteSettings.findOne().sort({ updatedAt: -1, createdAt: -1 });
 
     if (!settings) {
-      settings = await SiteSettings.create(payload);
+      settings = await SiteSettings.create({ ...payload, isPublished: true });
     } else {
-      settings.set(payload);
+      settings.set({ ...payload, isPublished: true });
       await settings.save();
     }
+
+    await SiteSettings.updateMany(
+      { _id: { $ne: settings._id } },
+      { $set: { isPublished: false } }
+    );
+
+    res.set({
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+      "Surrogate-Control": "no-store",
+    });
 
     res.status(200).json({
       success: true,

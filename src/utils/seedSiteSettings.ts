@@ -30,7 +30,7 @@ const mergeUsefulLinksWithDefaults = (links: any[] = []) => {
 };
 
 export const seedSiteSettings = async () => {
-  let settings = await SiteSettings.findOne();
+  let settings = await SiteSettings.findOne().sort({ updatedAt: -1, createdAt: -1 });
 
   if (!settings) {
     await SiteSettings.create(defaultSiteSettings);
