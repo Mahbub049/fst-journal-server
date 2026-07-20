@@ -2,6 +2,26 @@ import { Request, Response } from "express";
 import Homepage from "../models/Homepage.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 
+const clampNumber = (
+  value: unknown,
+  fallback: number,
+  minimum: number,
+  maximum: number
+) => {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) return fallback;
+
+  return Math.min(Math.max(Math.round(numericValue), minimum), maximum);
+};
+
+const normalizeTargetDate = (value: unknown) => {
+  if (!value) return null;
+
+  const date = new Date(String(value));
+  return Number.isFinite(date.getTime()) ? date : null;
+};
+
 const normalizeHomepagePayload = (body: Record<string, any>) => {
   return {
     heroTitle: body.heroTitle || "",
@@ -23,6 +43,33 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
 
     overviewTitle: body.overviewTitle || "",
     overviewContent: body.overviewContent || "",
+
+    countdownEnabled: body.countdownEnabled ?? true,
+    countdownTitle:
+      String(body.countdownTitle || "").trim() ||
+      "Countdown to the Next Journal Milestone",
+    countdownTargetDate: normalizeTargetDate(body.countdownTargetDate),
+    countdownExpiredText:
+      String(body.countdownExpiredText || "").trim() ||
+      "The scheduled date has arrived",
+
+    carouselEnabled: body.carouselEnabled ?? true,
+    carouselIntervalSeconds: clampNumber(
+      body.carouselIntervalSeconds,
+      5,
+      2,
+      30
+    ),
+    carouselImages: Array.isArray(body.carouselImages)
+      ? body.carouselImages
+          .map((item: any, index: number) => ({
+            imageUrl: String(item.imageUrl || item.url || "").trim(),
+            altText: String(item.altText || item.alt || "").trim(),
+            order: Number(item.order ?? index + 1),
+            isActive: item.isActive ?? true,
+          }))
+          .filter((item: { imageUrl: string }) => item.imageUrl)
+      : [],
 
     journalInfoTitle: body.journalInfoTitle || "",
     journalInfoItems: Array.isArray(body.journalInfoItems)

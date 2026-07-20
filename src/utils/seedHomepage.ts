@@ -44,6 +44,15 @@ export const seedHomepage = async () => {
     overviewContent:
       "The BUP Faculty of Science and Technology Journal publishes quality research in science, technology, engineering, and related interdisciplinary areas.",
 
+    countdownEnabled: true,
+    countdownTitle: "Countdown to the Next Journal Milestone",
+    countdownTargetDate: null,
+    countdownExpiredText: "The scheduled date has arrived",
+
+    carouselEnabled: true,
+    carouselIntervalSeconds: 5,
+    carouselImages: [],
+
     journalInfoTitle: "Journal Information",
     journalInfoItems: [
       {

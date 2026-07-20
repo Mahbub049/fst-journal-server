@@ -60,6 +60,10 @@ export const seedSiteSettings = async () => {
     "announcementSpeedSeconds",
     defaultSiteSettings.announcementSpeedSeconds
   );
+  patchIfMissing(
+    "announcementGapPixels",
+    defaultSiteSettings.announcementGapPixels
+  );
 
   if (!Array.isArray((settings as any).announcementItems)) {
     (settings as any).announcementItems = defaultAnnouncementItems;

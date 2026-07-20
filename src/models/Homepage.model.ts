@@ -23,6 +23,13 @@ export interface IHomepageButton {
   isActive: boolean;
 }
 
+export interface IHomepageCarouselImage {
+  imageUrl: string;
+  altText: string;
+  order: number;
+  isActive: boolean;
+}
+
 export interface IHomepage extends Document {
   heroTitle: string;
   heroSubtitle: string;
@@ -35,6 +42,15 @@ export interface IHomepage extends Document {
 
   overviewTitle: string;
   overviewContent: string;
+
+  countdownEnabled: boolean;
+  countdownTitle: string;
+  countdownTargetDate: Date | null;
+  countdownExpiredText: string;
+
+  carouselEnabled: boolean;
+  carouselIntervalSeconds: number;
+  carouselImages: IHomepageCarouselImage[];
 
   journalInfoTitle: string;
   journalInfoItems: IHomepageInfoItem[];
@@ -134,6 +150,30 @@ const buttonSchema = new Schema<IHomepageButton>(
   { _id: true }
 );
 
+const carouselImageSchema = new Schema<IHomepageCarouselImage>(
+  {
+    imageUrl: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    altText: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    order: {
+      type: Number,
+      default: 0,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: true }
+);
+
 const homepageSchema = new Schema<IHomepage>(
   {
     heroTitle: {
@@ -182,6 +222,45 @@ const homepageSchema = new Schema<IHomepage>(
       type: String,
       default:
         "The BUP Faculty of Science and Technology Journal publishes quality research in science, technology, engineering, and related interdisciplinary areas.",
+    },
+
+    countdownEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
+    countdownTitle: {
+      type: String,
+      default: "Countdown to the Next Journal Milestone",
+      trim: true,
+    },
+
+    countdownTargetDate: {
+      type: Date,
+      default: null,
+    },
+
+    countdownExpiredText: {
+      type: String,
+      default: "The scheduled date has arrived",
+      trim: true,
+    },
+
+    carouselEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
+    carouselIntervalSeconds: {
+      type: Number,
+      default: 5,
+      min: 2,
+      max: 30,
+    },
+
+    carouselImages: {
+      type: [carouselImageSchema],
+      default: [],
     },
 
     journalInfoTitle: {

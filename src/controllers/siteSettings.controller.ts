@@ -144,6 +144,7 @@ export const defaultSiteSettings = {
 
   announcementItems: defaultAnnouncementItems,
   announcementSpeedSeconds: 100,
+  announcementGapPixels: 120,
 
   usefulLinks: defaultUsefulLinks,
   socialLinks: [],
@@ -178,6 +179,17 @@ const normalizeAnnouncementSpeedSeconds = (value: any) => {
   }
 
   return Math.min(Math.max(Math.round(numericValue), 10), 300);
+};
+
+
+const normalizeAnnouncementGapPixels = (value: any) => {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return defaultSiteSettings.announcementGapPixels;
+  }
+
+  return Math.min(Math.max(Math.round(numericValue), 24), 480);
 };
 
 const normalizeAnnouncementItems = (items: any[] = []) => {
@@ -220,6 +232,9 @@ const normalizeSiteSettingsPayload = (body: Record<string, any>) => {
       : defaultAnnouncementItems,
     announcementSpeedSeconds: normalizeAnnouncementSpeedSeconds(
       body.announcementSpeedSeconds
+    ),
+    announcementGapPixels: normalizeAnnouncementGapPixels(
+      body.announcementGapPixels
     ),
 
     usefulLinks: Array.isArray(body.usefulLinks)
@@ -274,6 +289,10 @@ const createOrMigrateSiteSettings = async () => {
   patchIfMissing(
     "announcementSpeedSeconds",
     defaultSiteSettings.announcementSpeedSeconds
+  );
+  patchIfMissing(
+    "announcementGapPixels",
+    defaultSiteSettings.announcementGapPixels
   );
 
   if (!Array.isArray((settings as any).announcementItems)) {

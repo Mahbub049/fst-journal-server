@@ -42,6 +42,7 @@ export interface ISiteSettings extends Document {
 
   announcementItems: IAnnouncementItem[];
   announcementSpeedSeconds: number;
+  announcementGapPixels: number;
 
   usefulLinks: IUsefulLink[];
   socialLinks: ISocialLink[];
@@ -251,6 +252,13 @@ const siteSettingsSchema = new Schema<ISiteSettings>(
       default: 100,
       min: 10,
       max: 300,
+    },
+
+    announcementGapPixels: {
+      type: Number,
+      default: 120,
+      min: 24,
+      max: 480,
     },
 
     usefulLinks: {
