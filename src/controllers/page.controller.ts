@@ -7,7 +7,7 @@ import Page, {
 } from "../models/Page.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 
-const allowedGroups: PageGroup[] = ["about", "for-authors", "issues", "custom"];
+const allowedGroups: PageGroup[] = ["about", "for-authors", "reviewers", "issues", "custom"];
 const allowedBlockTypes: ContentBlockType[] = [
   "paragraph",
   "heading",
@@ -39,6 +39,7 @@ const getPublicPageUrl = (group: PageGroup, slug: string) => {
   if (group === "about" && slug === "contact-us") return "/contact";
   if (group === "about") return `/about/${slug}`;
   if (group === "for-authors") return `/for-authors/${slug}`;
+  if (group === "reviewers") return `/reviewers/${slug}`;
   if (group === "issues") return `/issues/${slug}`;
   return `/${slug}`;
 };

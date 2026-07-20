@@ -160,11 +160,9 @@ const normalizeOptionalString = (value: unknown, fallback = "") => {
 const normalizeStringArray = (value: unknown, fallback: string[]) => {
   if (!Array.isArray(value)) return fallback;
 
-  const cleaned = value
+  return value
     .map((item) => (typeof item === "string" ? item.trim() : ""))
     .filter(Boolean);
-
-  return cleaned.length ? cleaned : fallback;
 };
 
 const normalizeImportantDates = (value: unknown) => {
@@ -179,50 +177,37 @@ const normalizeImportantDates = (value: unknown) => {
     }))
     .filter((item) => item.label && item.date);
 
-  return cleaned.length ? cleaned : DEFAULT_CALL_FOR_PAPER.importantDates;
+  return cleaned;
 };
 
 const normalizeCallForPaperPayload = (body: Record<string, any>) => {
   return {
-    invitationLabel: normalizeString(
-      body.invitationLabel,
-      DEFAULT_CALL_FOR_PAPER.invitationLabel
-    ),
+    invitationLabel: normalizeOptionalString(body.invitationLabel),
     title: normalizeString(body.title, DEFAULT_CALL_FOR_PAPER.title),
     subtitle: normalizeOptionalString(body.subtitle, DEFAULT_CALL_FOR_PAPER.subtitle),
-    description: normalizeString(
-      body.description,
-      DEFAULT_CALL_FOR_PAPER.description
-    ),
+    description: normalizeOptionalString(body.description),
 
     posterImage: normalizeOptionalString(body.posterImage),
     pdfUrl: normalizeString(body.pdfUrl, DEFAULT_CALL_FOR_PAPER.pdfUrl),
     pdfTitle: normalizeString(body.pdfTitle, DEFAULT_CALL_FOR_PAPER.pdfTitle),
     pdfSubtitle: normalizeString(body.pdfSubtitle, DEFAULT_CALL_FOR_PAPER.pdfSubtitle),
 
-    submissionFormatLabel: normalizeString(
-      body.submissionFormatLabel,
-      DEFAULT_CALL_FOR_PAPER.submissionFormatLabel
-    ),
+    submissionFormatLabel: normalizeOptionalString(body.submissionFormatLabel),
     submissionFormatTitle: normalizeString(
       body.submissionFormatTitle,
       DEFAULT_CALL_FOR_PAPER.submissionFormatTitle
     ),
-    submissionFormatDescription: normalizeString(
-      body.submissionFormatDescription,
-      DEFAULT_CALL_FOR_PAPER.submissionFormatDescription
+    submissionFormatDescription: normalizeOptionalString(
+      body.submissionFormatDescription
     ),
     submissionTypes: normalizeStringArray(
       body.submissionTypes,
       DEFAULT_CALL_FOR_PAPER.submissionTypes
     ),
 
-    scopeLabel: normalizeString(body.scopeLabel, DEFAULT_CALL_FOR_PAPER.scopeLabel),
+    scopeLabel: normalizeOptionalString(body.scopeLabel),
     scopeTitle: normalizeString(body.scopeTitle, DEFAULT_CALL_FOR_PAPER.scopeTitle),
-    scopeDescription: normalizeString(
-      body.scopeDescription,
-      DEFAULT_CALL_FOR_PAPER.scopeDescription
-    ),
+    scopeDescription: normalizeOptionalString(body.scopeDescription),
     engineeringTitle: normalizeString(
       body.engineeringTitle,
       DEFAULT_CALL_FOR_PAPER.engineeringTitle
@@ -240,38 +225,25 @@ const normalizeCallForPaperPayload = (body: Record<string, any>) => {
       DEFAULT_CALL_FOR_PAPER.environmentalTopics
     ),
 
-    finalSectionLabel: normalizeString(
-      body.finalSectionLabel,
-      DEFAULT_CALL_FOR_PAPER.finalSectionLabel
-    ),
+    finalSectionLabel: normalizeOptionalString(body.finalSectionLabel),
     finalSectionTitle: normalizeString(
       body.finalSectionTitle,
       DEFAULT_CALL_FOR_PAPER.finalSectionTitle
     ),
-    finalSectionDescription: normalizeString(
-      body.finalSectionDescription,
-      DEFAULT_CALL_FOR_PAPER.finalSectionDescription
+    finalSectionDescription: normalizeOptionalString(
+      body.finalSectionDescription
     ),
 
-    importantInfoLabel: normalizeString(
-      body.importantInfoLabel,
-      DEFAULT_CALL_FOR_PAPER.importantInfoLabel
-    ),
+    importantInfoLabel: normalizeOptionalString(body.importantInfoLabel),
     timelineTitle: normalizeString(
       body.timelineTitle,
       DEFAULT_CALL_FOR_PAPER.timelineTitle
     ),
     importantDates: normalizeImportantDates(body.importantDates),
 
-    submitSectionLabel: normalizeString(
-      body.submitSectionLabel,
-      DEFAULT_CALL_FOR_PAPER.submitSectionLabel
-    ),
+    submitSectionLabel: normalizeOptionalString(body.submitSectionLabel),
     submitTitle: normalizeString(body.submitTitle, DEFAULT_CALL_FOR_PAPER.submitTitle),
-    submitDescription: normalizeString(
-      body.submitDescription,
-      DEFAULT_CALL_FOR_PAPER.submitDescription
-    ),
+    submitDescription: normalizeOptionalString(body.submitDescription),
     submissionButtonLabel: normalizeString(
       body.submissionButtonLabel,
       DEFAULT_CALL_FOR_PAPER.submissionButtonLabel
@@ -289,10 +261,7 @@ const normalizeCallForPaperPayload = (body: Record<string, any>) => {
       DEFAULT_CALL_FOR_PAPER.guidelinesButtonLink
     ),
 
-    contactSectionLabel: normalizeString(
-      body.contactSectionLabel,
-      DEFAULT_CALL_FOR_PAPER.contactSectionLabel
-    ),
+    contactSectionLabel: normalizeOptionalString(body.contactSectionLabel),
     contactTitle: normalizeString(body.contactTitle, DEFAULT_CALL_FOR_PAPER.contactTitle),
     contactEditorLabel: normalizeString(
       body.contactEditorLabel,

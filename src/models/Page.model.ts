@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema } from "mongoose";
 
-export type PageGroup = "about" | "for-authors" | "issues" | "custom";
+export type PageGroup = "about" | "for-authors" | "reviewers" | "issues" | "custom";
 export type ContentBlockType =
   | "paragraph"
   | "heading"
@@ -140,7 +140,7 @@ const pageSchema = new Schema<IPage>(
     slug: { type: String, required: true, lowercase: true, trim: true },
     group: {
       type: String,
-      enum: ["about", "for-authors", "issues", "custom"],
+      enum: ["about", "for-authors", "reviewers", "issues", "custom"],
       required: true,
     },
     subtitle: { type: String, default: "" },

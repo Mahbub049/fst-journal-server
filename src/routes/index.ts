@@ -10,6 +10,7 @@ import editorialBoardRoutes from "./editorialBoard.routes";
 import callForPaperRoutes from "./callForPaper.routes";
 import siteSettingsRoutes from "./siteSettings.routes";
 import searchRoutes from "./search.routes";
+import contactPageRoutes from "./contactPage.routes";
 
 const router = Router();
 
@@ -31,5 +32,6 @@ router.use("/editorial-board", editorialBoardRoutes);
 router.use("/call-for-papers", callForPaperRoutes);
 router.use("/site-settings", siteSettingsRoutes);
 router.use("/search", searchRoutes);
+router.use("/contact-page", contactPageRoutes);
 
 export default router;

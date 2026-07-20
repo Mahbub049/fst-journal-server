@@ -357,6 +357,71 @@ const defaultPages = [
       ),
     ],
   },
+  {
+    title: "Reviewers Guideline",
+    slug: "reviewers-guideline",
+    group: "reviewers",
+    subtitle:
+      "Guidance for reviewers participating in the journal's double-blind peer review process.",
+    order: 1,
+    contentBlocks: [
+      paragraphBlock(
+        "Reviewers",
+        "Reviewers are an integral part of the double-blind peer review process, and their valuable comments are imperative for helping authors improve their research.",
+        1
+      ),
+      paragraphBlock(
+        "Reviewers Guideline",
+        "All articles submitted to Journal of FST are reviewed by a minimum of two independent reviewers using a double-blind peer review process, where the identities of the reviewers and authors are concealed from each other. The reviewers’ evaluation <a href='#' target='_blank' rel='noreferrer'>form</a> is available here.",
+        2
+      ),
+    ],
+  },
+  {
+    title: "Peer Review Process",
+    slug: "peer-review-process",
+    group: "reviewers",
+    subtitle:
+      "The review process includes desk review, double-blind peer review, editorial decision, revision, and production.",
+    order: 2,
+    contentBlocks: [
+      paragraphBlock(
+        "Review Process",
+        "The review processes are Desk Review, Double-Blind Peer Review, Editorial Decision, and Production.",
+        1
+      ),
+      listBlock(
+        "Steps of Review",
+        [
+          "Initial Submission and Desk Review: Quality Check, Editor Assessment, and Desk Reject.",
+          "Double-Blind Review: Selection of Reviewers, Double-Blind Review, and Evaluation.",
+          "Editorial Decision: Accept, Minor Revisions, Major Revisions, or Reject.",
+          "Revision and Production: Addressing Comments, Final Checks, and Production.",
+        ],
+        2
+      ),
+      paragraphBlock(
+        "Editorial Screening / Desk Review",
+        "The editorial board will verify whether the manuscript complies with the journal's scope, originality requirements, article quality, word limits, page limits, formatting requirements, manuscript structure, similarity threshold or plagiarism requirements, and ethical standards after initial submission.",
+        3
+      ),
+      paragraphBlock(
+        "Originality Checking / Double-Blind Review",
+        "After desk acceptance, the article will be evaluated by a minimum of two subject experts.",
+        4
+      ),
+      paragraphBlock(
+        "Review and Decision / Editorial Decision",
+        "The Editorial Board evaluates submitted manuscripts and makes publication decisions, including acceptance or rejection, based on subject experts' opinions and the journal's policy.",
+        5
+      ),
+      paragraphBlock(
+        "Revision Communication / Revision and Production",
+        "Accepted manuscripts that require revision will be sent to authors with reviewer comments and editorial instructions via email. Revised manuscripts should be submitted according to the instructions provided by the editorial office.",
+        6
+      ),
+    ],
+  },
 ];
 
 const shouldRefreshOldDefaultPage = (existingPage: any) => {
