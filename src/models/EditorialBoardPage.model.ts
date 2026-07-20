@@ -16,6 +16,7 @@ export interface IEditorialAreaSetting {
 }
 
 export interface IEditorialBoardPage extends Document {
+  showEyebrow: boolean;
   eyebrow: string;
   pageTitle: string;
   intro: string;
@@ -60,6 +61,7 @@ const areaSchema = new Schema<IEditorialAreaSetting>(
 
 const editorialBoardPageSchema = new Schema<IEditorialBoardPage>(
   {
+    showEyebrow: { type: Boolean, default: true },
     eyebrow: { type: String, default: "Editorial Leadership", trim: true },
     pageTitle: { type: String, default: "Editorial Board", trim: true },
     intro: {

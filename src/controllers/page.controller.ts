@@ -261,6 +261,7 @@ export const createAdminPage = async (
       title: String(title).trim(),
       slug,
       group,
+      showTopLabel: req.body.showTopLabel ?? true,
       subtitle: String(req.body.subtitle || ""),
       bannerImage: sanitizeUrl(req.body.bannerImage),
       shortDescription: String(req.body.shortDescription || ""),
@@ -323,6 +324,7 @@ export const updateAdminPage = async (
     page.title = title;
     page.slug = slug;
     page.group = group;
+    page.showTopLabel = req.body.showTopLabel ?? page.showTopLabel ?? true;
     page.subtitle = String(req.body.subtitle ?? page.subtitle ?? "");
     page.bannerImage = sanitizeUrl(req.body.bannerImage ?? page.bannerImage ?? "");
     page.shortDescription = String(

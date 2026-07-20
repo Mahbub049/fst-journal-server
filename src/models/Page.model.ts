@@ -52,6 +52,7 @@ export interface IPage extends Document {
   title: string;
   slug: string;
   group: PageGroup;
+  showTopLabel: boolean;
   subtitle?: string;
   bannerImage?: string;
   shortDescription?: string;
@@ -143,6 +144,7 @@ const pageSchema = new Schema<IPage>(
       enum: ["about", "for-authors", "reviewers", "issues", "custom"],
       required: true,
     },
+    showTopLabel: { type: Boolean, default: true },
     subtitle: { type: String, default: "" },
     bannerImage: { type: String, default: "" },
     shortDescription: { type: String, default: "" },

@@ -53,6 +53,13 @@ const normalizeEditorPayload = (body: Record<string, any>) => {
     bio: String(body.bio || "").trim(),
     email: String(body.email || "").trim(),
     professionalProfileUrl: String(body.professionalProfileUrl || "").trim(),
+    googleScholarUrl: String(body.googleScholarUrl || "").trim(),
+    researchGateUrl: String(body.researchGateUrl || "").trim(),
+    linkedinUrl: String(body.linkedinUrl || "").trim(),
+    orcidUrl: String(body.orcidUrl || "").trim(),
+    scopusUrl: String(body.scopusUrl || "").trim(),
+    webOfScienceUrl: String(body.webOfScienceUrl || "").trim(),
+    personalWebsiteUrl: String(body.personalWebsiteUrl || "").trim(),
     biographyUrl: String(body.biographyUrl || "").trim(),
     professionalProfileLabel: String(body.professionalProfileLabel || "").trim(),
     biographyLabel: String(body.biographyLabel || "View Full Biography").trim(),
@@ -299,6 +306,7 @@ export const updateAdminEditorialBoardConfig = async (
     }
 
     config.set({
+      showEyebrow: req.body.showEyebrow ?? true,
       eyebrow: String(req.body.eyebrow || "Editorial Leadership").trim(),
       pageTitle: String(req.body.pageTitle || "Editorial Board").trim(),
       intro: String(req.body.intro || "").trim(),

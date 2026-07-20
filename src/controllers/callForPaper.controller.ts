@@ -5,6 +5,7 @@ import CallForPaper from "../models/CallForPaper.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 
 const DEFAULT_CALL_FOR_PAPER = {
+  showInvitationLabel: true,
   invitationLabel: "Publication Invitation",
   title: "Call for Papers",
   subtitle: "",
@@ -182,6 +183,7 @@ const normalizeImportantDates = (value: unknown) => {
 
 const normalizeCallForPaperPayload = (body: Record<string, any>) => {
   return {
+    showInvitationLabel: body.showInvitationLabel ?? true,
     invitationLabel: normalizeOptionalString(body.invitationLabel),
     title: normalizeString(body.title, DEFAULT_CALL_FOR_PAPER.title),
     subtitle: normalizeOptionalString(body.subtitle, DEFAULT_CALL_FOR_PAPER.subtitle),

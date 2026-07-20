@@ -3,6 +3,7 @@ import ContactPage from "../models/ContactPage.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 
 const DEFAULT_CONTACT_PAGE = {
+  showEyebrow: true,
   eyebrow: "Contact",
   title: "Contact Us",
   subtitle: "Contact information for journal communication.",
@@ -44,6 +45,7 @@ const sanitizeHtml = (value: unknown) =>
     .replace(/javascript\s*:/gi, "");
 
 const normalizePayload = (body: Record<string, any>) => ({
+  showEyebrow: body.showEyebrow ?? true,
   eyebrow: optionalString(body.eyebrow),
   title: optionalString(body.title),
   subtitle: optionalString(body.subtitle),

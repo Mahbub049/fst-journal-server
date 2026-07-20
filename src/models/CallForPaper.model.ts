@@ -8,6 +8,7 @@ export interface IImportantDate {
 }
 
 export interface ICallForPaper extends Document {
+  showInvitationLabel: boolean;
   invitationLabel: string;
   title: string;
   subtitle: string;
@@ -88,6 +89,10 @@ const importantDateSchema = new Schema<IImportantDate>(
 
 const callForPaperSchema = new Schema<ICallForPaper>(
   {
+    showInvitationLabel: {
+      type: Boolean,
+      default: true,
+    },
     invitationLabel: {
       type: String,
       default: "Publication Invitation",

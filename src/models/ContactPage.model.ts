@@ -1,6 +1,7 @@
 import mongoose, { Document, Model, Schema } from "mongoose";
 
 export interface IContactPage extends Document {
+  showEyebrow: boolean;
   eyebrow: string;
   title: string;
   subtitle: string;
@@ -29,6 +30,7 @@ export interface IContactPage extends Document {
 
 const contactPageSchema = new Schema<IContactPage>(
   {
+    showEyebrow: { type: Boolean, default: true },
     eyebrow: { type: String, default: "Contact", trim: true },
     title: { type: String, default: "Contact Us", trim: true },
     subtitle: {

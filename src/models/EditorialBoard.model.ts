@@ -12,6 +12,13 @@ export interface IEditorialBoard extends Document {
   bio: string;
   email: string;
   professionalProfileUrl: string;
+  googleScholarUrl: string;
+  researchGateUrl: string;
+  linkedinUrl: string;
+  orcidUrl: string;
+  scopusUrl: string;
+  webOfScienceUrl: string;
+  personalWebsiteUrl: string;
   biographyUrl: string;
   professionalProfileLabel: string;
   biographyLabel: string;
@@ -83,6 +90,48 @@ const editorialBoardSchema = new Schema<IEditorialBoard>(
     },
 
     professionalProfileUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    googleScholarUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    researchGateUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    linkedinUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    orcidUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    scopusUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    webOfScienceUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    personalWebsiteUrl: {
       type: String,
       default: "",
       trim: true,
