@@ -5,6 +5,7 @@ import {
   getAdminMenuById,
   getAdminMenus,
   getPublicMenus,
+  reorderAdminMenus,
   updateAdminMenu,
 } from "../controllers/menu.controller";
 import { protectAdmin } from "../middlewares/adminAuth.middleware";
@@ -12,6 +13,7 @@ import { protectAdmin } from "../middlewares/adminAuth.middleware";
 const router = Router();
 
 router.get("/admin/all", protectAdmin, getAdminMenus);
+router.patch("/admin/reorder", protectAdmin, reorderAdminMenus);
 router.get("/admin/:id", protectAdmin, getAdminMenuById);
 router.post("/admin", protectAdmin, createAdminMenu);
 router.put("/admin/:id", protectAdmin, updateAdminMenu);

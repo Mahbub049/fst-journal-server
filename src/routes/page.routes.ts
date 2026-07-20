@@ -6,6 +6,7 @@ import {
   getAdminPages,
   getPublicPageByGroupAndSlug,
   getPublicPages,
+  reorderAdminPages,
   updateAdminPage,
 } from "../controllers/page.controller";
 import { protectAdmin } from "../middlewares/adminAuth.middleware";
@@ -13,6 +14,7 @@ import { protectAdmin } from "../middlewares/adminAuth.middleware";
 const router = Router();
 
 router.get("/admin/all", protectAdmin, getAdminPages);
+router.patch("/admin/reorder", protectAdmin, reorderAdminPages);
 router.get("/admin/:id", protectAdmin, getAdminPageById);
 router.post("/admin", protectAdmin, createAdminPage);
 router.put("/admin/:id", protectAdmin, updateAdminPage);

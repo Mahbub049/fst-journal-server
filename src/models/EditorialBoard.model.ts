@@ -11,6 +11,10 @@ export interface IEditorialBoard extends Document {
   profileImage: string;
   bio: string;
   email: string;
+  professionalProfileUrl: string;
+  biographyUrl: string;
+  professionalProfileLabel: string;
+  biographyLabel: string;
   order: number;
   isActive: boolean;
 }
@@ -76,6 +80,30 @@ const editorialBoardSchema = new Schema<IEditorialBoard>(
       default: "",
       trim: true,
       lowercase: true,
+    },
+
+    professionalProfileUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    biographyUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    professionalProfileLabel: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    biographyLabel: {
+      type: String,
+      default: "View Full Biography",
+      trim: true,
     },
 
     order: {
