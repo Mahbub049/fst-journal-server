@@ -84,6 +84,7 @@ export const seedHomepage = async () => {
     executiveEditorsTitle: "Executive Editors",
     executiveEditorsSubtitle:
       "Meet the executive editorial members of the journal.",
+    executiveEditorsShowBiographyPreview: false,
 
     articlesSectionTitle: "Articles",
     articlesSectionSubtitle: "Explore recently published articles.",

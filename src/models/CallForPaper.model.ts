@@ -7,22 +7,37 @@ export interface IImportantDate {
   isActive: boolean;
 }
 
+export interface ISubmissionType {
+  title: string;
+  description: string;
+  order: number;
+  isActive: boolean;
+}
+
 export interface ICallForPaper extends Document {
   showInvitationLabel: boolean;
   invitationLabel: string;
   title: string;
   subtitle: string;
   description: string;
+  descriptionWidth: "normal" | "full";
+  descriptionAlignment: "left" | "center" | "right" | "justify";
 
   posterImage: string;
   pdfUrl: string;
   pdfTitle: string;
   pdfSubtitle: string;
+  showPdfActionButton: boolean;
+  pdfActionButtonLabel: string;
+  pdfActionButtonLink: string;
+  showPdfActionButtonIcon: boolean;
+  showEmbeddedPdfViewer: boolean;
 
   submissionFormatLabel: string;
   submissionFormatTitle: string;
   submissionFormatDescription: string;
   submissionTypes: string[];
+  submissionTypeDetails: ISubmissionType[];
 
   scopeLabel: string;
   scopeTitle: string;
@@ -87,6 +102,30 @@ const importantDateSchema = new Schema<IImportantDate>(
   { _id: true }
 );
 
+const submissionTypeSchema = new Schema<ISubmissionType>(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    order: {
+      type: Number,
+      default: 0,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: true }
+);
+
 const callForPaperSchema = new Schema<ICallForPaper>(
   {
     showInvitationLabel: {
@@ -113,6 +152,16 @@ const callForPaperSchema = new Schema<ICallForPaper>(
       type: String,
       default: "",
     },
+    descriptionWidth: {
+      type: String,
+      enum: ["normal", "full"],
+      default: "normal",
+    },
+    descriptionAlignment: {
+      type: String,
+      enum: ["left", "center", "right", "justify"],
+      default: "justify",
+    },
 
     posterImage: {
       type: String,
@@ -134,6 +183,28 @@ const callForPaperSchema = new Schema<ICallForPaper>(
       default: "Volume 4, Issue 1",
       trim: true,
     },
+    showPdfActionButton: {
+      type: Boolean,
+      default: true,
+    },
+    pdfActionButtonLabel: {
+      type: String,
+      default: "View PDF",
+      trim: true,
+    },
+    pdfActionButtonLink: {
+      type: String,
+      default: "/pdfs/call-for-papers.pdf",
+      trim: true,
+    },
+    showPdfActionButtonIcon: {
+      type: Boolean,
+      default: true,
+    },
+    showEmbeddedPdfViewer: {
+      type: Boolean,
+      default: true,
+    },
 
     submissionFormatLabel: {
       type: String,
@@ -151,6 +222,10 @@ const callForPaperSchema = new Schema<ICallForPaper>(
     },
     submissionTypes: {
       type: [String],
+      default: [],
+    },
+    submissionTypeDetails: {
+      type: [submissionTypeSchema],
       default: [],
     },
 

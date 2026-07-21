@@ -5,15 +5,28 @@ import routes from "./routes";
 import { env } from "./config/env";
 import { connectDB } from "./config/db";
 import { seedAdmin } from "./utils/seedAdmin";
-import { seedPages } from "./utils/seedPages";
-import { seedHomepage } from "./utils/seedHomepage";
-import { seedMenus } from "./utils/seedMenus";
-import { seedSiteSettings } from "./utils/seedSiteSettings";
+import { bootstrapCms } from "./utils/bootstrapCms";
 import { startCitationSyncScheduler } from "./services/citationScheduler.service";
 
 const app = express();
 
-let isDatabaseReady = false;
+let databaseReadyPromise: Promise<void> | null = null;
+
+const ensureDatabaseReady = () => {
+  if (!databaseReadyPromise) {
+    databaseReadyPromise = (async () => {
+      await connectDB();
+      await seedAdmin();
+      await bootstrapCms();
+      startCitationSyncScheduler();
+    })().catch((error) => {
+      databaseReadyPromise = null;
+      throw error;
+    });
+  }
+
+  return databaseReadyPromise;
+};
 
 const allowedOrigins = Array.from(
   new Set([
@@ -58,19 +71,7 @@ app.use(
 
 app.use(async (_req: Request, _res: Response, next: NextFunction) => {
   try {
-    if (!isDatabaseReady) {
-      await connectDB();
-
-      await seedAdmin();
-      await seedPages();
-      await seedHomepage();
-      await seedMenus();
-      await seedSiteSettings();
-      startCitationSyncScheduler();
-
-      isDatabaseReady = true;
-    }
-
+    await ensureDatabaseReady();
     next();
   } catch (error) {
     next(error);

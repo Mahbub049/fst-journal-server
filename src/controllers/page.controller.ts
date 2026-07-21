@@ -1,8 +1,12 @@
 import { Request, Response } from "express";
 import Menu from "../models/Menu.model";
 import Page, {
+  CmsButtonIcon,
+  CmsButtonLayout,
+  CmsButtonVariant,
   ContentBlockType,
   IContentBlock,
+  IPageActionButton,
   PageGroup,
 } from "../models/Page.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
@@ -34,6 +38,33 @@ const createSlug = (text: string) =>
     .replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+
+const normalizeDisplayTitle = (text: unknown) =>
+  String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "");
+
+const findDuplicatePage = async (
+  group: PageGroup,
+  title: string,
+  slug: string,
+  excludeId?: string
+) => {
+  const pages = await Page.find({
+    group,
+    ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+  }).select("_id title slug");
+
+  const normalizedTitle = normalizeDisplayTitle(title);
+
+  return pages.find(
+    (page) =>
+      page.slug === slug ||
+      normalizeDisplayTitle(page.title) === normalizedTitle
+  );
+};
 
 const getPublicPageUrl = (group: PageGroup, slug: string) => {
   if (group === "about" && slug === "contact-us") return "/contact";
@@ -80,6 +111,56 @@ const normalizeStringArray = (value: unknown) => {
   return [];
 };
 
+const allowedButtonIcons: CmsButtonIcon[] = [
+  "none",
+  "download",
+  "pdf",
+  "latex",
+  "document",
+  "submit",
+  "external",
+  "arrow-right",
+  "arrow-up-right",
+];
+const allowedButtonVariants: CmsButtonVariant[] = [
+  "primary",
+  "secondary",
+  "outline",
+  "light",
+];
+const allowedButtonLayouts: CmsButtonLayout[] = ["vertical", "horizontal"];
+
+const normalizeButtonIcon = (value: unknown): CmsButtonIcon =>
+  allowedButtonIcons.includes(value as CmsButtonIcon)
+    ? (value as CmsButtonIcon)
+    : "none";
+
+const normalizeButtonVariant = (value: unknown): CmsButtonVariant =>
+  allowedButtonVariants.includes(value as CmsButtonVariant)
+    ? (value as CmsButtonVariant)
+    : "primary";
+
+const normalizeButtonLayout = (value: unknown): CmsButtonLayout =>
+  allowedButtonLayouts.includes(value as CmsButtonLayout)
+    ? (value as CmsButtonLayout)
+    : "vertical";
+
+const normalizePageButtons = (buttons: unknown): IPageActionButton[] => {
+  if (!Array.isArray(buttons)) return [];
+
+  return buttons
+    .map((button: any, index) => ({
+      label: String(button?.label || "").trim(),
+      url: sanitizeUrl(button?.url),
+      icon: normalizeButtonIcon(button?.icon),
+      variant: normalizeButtonVariant(button?.variant),
+      openInNewTab: button?.openInNewTab ?? false,
+      order: index,
+      isActive: button?.isActive ?? true,
+    }))
+    .filter((button) => button.label || button.url);
+};
+
 const normalizeBlockStyle = (style: any = {}) => ({
   alignment: ["left", "center", "right", "justify"].includes(style.alignment)
     ? style.alignment
@@ -95,6 +176,7 @@ const normalizeBlockStyle = (style: any = {}) => ({
   columns: Math.min(Math.max(Number(style.columns || 2), 1), 4),
   headingLevel: Math.min(Math.max(Number(style.headingLevel || 2), 1), 6),
   variant: String(style.variant || "default").trim(),
+  buttonLayout: normalizeButtonLayout(style.buttonLayout),
 });
 
 const normalizeContentBlocks = (
@@ -118,6 +200,10 @@ const normalizeContentBlocks = (
         fileUrl: sanitizeUrl(rawBlock?.fileUrl),
         buttonLabel: String(rawBlock?.buttonLabel || "").trim(),
         buttonUrl: sanitizeUrl(rawBlock?.buttonUrl),
+        showButton: rawBlock?.showButton ?? true,
+        buttonIcon: normalizeButtonIcon(rawBlock?.buttonIcon),
+        buttonVariant: normalizeButtonVariant(rawBlock?.buttonVariant),
+        buttonOpenInNewTab: rawBlock?.buttonOpenInNewTab ?? false,
         caption: String(rawBlock?.caption || "").trim(),
         altText: String(rawBlock?.altText || "").trim(),
         codeLanguage: String(rawBlock?.codeLanguage || "").trim(),
@@ -247,7 +333,7 @@ export const createAdminPage = async (
       return;
     }
 
-    const duplicate = await Page.findOne({ group, slug });
+    const duplicate = await findDuplicatePage(group, String(title).trim(), slug);
     if (duplicate) {
       res.status(409).json({
         success: false,
@@ -268,6 +354,17 @@ export const createAdminPage = async (
       contentBlocks: normalizeContentBlocks(req.body.contentBlocks),
       buttonLabel: String(req.body.buttonLabel || ""),
       buttonUrl: sanitizeUrl(req.body.buttonUrl),
+      showButton: req.body.showButton ?? true,
+      buttonIcon: normalizeButtonIcon(req.body.buttonIcon),
+      buttonVariant: normalizeButtonVariant(req.body.buttonVariant),
+      buttonOpenInNewTab: req.body.buttonOpenInNewTab ?? false,
+      showHelpCard: req.body.showHelpCard ?? group === "for-authors",
+      helpCardTitle: String(req.body.helpCardTitle || ""),
+      helpCardContent: sanitizeHtml(req.body.helpCardContent),
+      helpCardButtonLayout: normalizeButtonLayout(
+        req.body.helpCardButtonLayout || "horizontal"
+      ),
+      helpCardButtons: normalizePageButtons(req.body.helpCardButtons),
       metaTitle: String(req.body.metaTitle || ""),
       metaDescription: String(req.body.metaDescription || ""),
       order,
@@ -301,11 +398,12 @@ export const updateAdminPage = async (
     }
 
     const slug = createSlug(title);
-    const duplicate = await Page.findOne({
-      _id: { $ne: page._id },
+    const duplicate = await findDuplicatePage(
       group,
+      title,
       slug,
-    });
+      String(page._id)
+    );
 
     if (duplicate) {
       res.status(409).json({
@@ -335,6 +433,31 @@ export const updateAdminPage = async (
     }
     page.buttonLabel = String(req.body.buttonLabel ?? page.buttonLabel ?? "");
     page.buttonUrl = sanitizeUrl(req.body.buttonUrl ?? page.buttonUrl ?? "");
+    page.showButton = req.body.showButton ?? page.showButton ?? true;
+    page.buttonIcon = normalizeButtonIcon(
+      req.body.buttonIcon ?? page.buttonIcon ?? "none"
+    );
+    page.buttonVariant = normalizeButtonVariant(
+      req.body.buttonVariant ?? page.buttonVariant ?? "primary"
+    );
+    page.buttonOpenInNewTab =
+      req.body.buttonOpenInNewTab ?? page.buttonOpenInNewTab ?? false;
+    page.showHelpCard =
+      req.body.showHelpCard ?? page.showHelpCard ?? group === "for-authors";
+    page.helpCardTitle = String(
+      req.body.helpCardTitle ?? page.helpCardTitle ?? ""
+    );
+    page.helpCardContent = sanitizeHtml(
+      req.body.helpCardContent ?? page.helpCardContent ?? ""
+    );
+    page.helpCardButtonLayout = normalizeButtonLayout(
+      req.body.helpCardButtonLayout ??
+        page.helpCardButtonLayout ??
+        "horizontal"
+    );
+    if (req.body.helpCardButtons !== undefined) {
+      page.helpCardButtons = normalizePageButtons(req.body.helpCardButtons) as any;
+    }
     page.metaTitle = String(req.body.metaTitle ?? page.metaTitle ?? "");
     page.metaDescription = String(
       req.body.metaDescription ?? page.metaDescription ?? ""

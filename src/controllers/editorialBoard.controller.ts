@@ -321,6 +321,10 @@ export const updateAdminEditorialBoardConfig = async (
       ).trim(),
       showSummaryCards: req.body.showSummaryCards ?? true,
       showTotalCard: req.body.showTotalCard ?? true,
+      showEditorialOffice: req.body.showEditorialOffice ?? true,
+      editorialOfficeEyebrow: String(
+        req.body.editorialOfficeEyebrow || "Editorial Office"
+      ).trim(),
       editorialOfficeTitle: String(req.body.editorialOfficeTitle || "Editorial Office").trim(),
       editorialOfficeDescription: String(req.body.editorialOfficeDescription || "").trim(),
       editorialOfficePublisher: String(req.body.editorialOfficePublisher || "").trim(),
@@ -328,6 +332,15 @@ export const updateAdminEditorialBoardConfig = async (
       editorialOfficeAddress: String(req.body.editorialOfficeAddress || "").trim(),
       editorialOfficeEmail: String(req.body.editorialOfficeEmail || "").trim(),
       editorialOfficePhone: String(req.body.editorialOfficePhone || "").trim(),
+      showEditorialOfficeEmailButton:
+        req.body.showEditorialOfficeEmailButton ?? true,
+      editorialOfficeEmailButtonLabel: String(
+        req.body.editorialOfficeEmailButtonLabel || "Email Editorial Office"
+      ).trim(),
+      editorialOfficeEmailSubject: String(
+        req.body.editorialOfficeEmailSubject ||
+          "Journal of FST editorial office inquiry"
+      ).trim(),
       categories,
       editorialAreas,
     });

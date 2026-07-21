@@ -57,6 +57,7 @@ export interface IHomepage extends Document {
 
   executiveEditorsTitle: string;
   executiveEditorsSubtitle: string;
+  executiveEditorsShowBiographyPreview: boolean;
 
   articlesSectionTitle: string;
   articlesSectionSubtitle: string;
@@ -281,6 +282,11 @@ const homepageSchema = new Schema<IHomepage>(
     executiveEditorsSubtitle: {
       type: String,
       default: "Meet the executive editorial members of the journal.",
+    },
+
+    executiveEditorsShowBiographyPreview: {
+      type: Boolean,
+      default: false,
     },
 
     articlesSectionTitle: {

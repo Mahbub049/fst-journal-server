@@ -83,6 +83,8 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
 
     executiveEditorsTitle: body.executiveEditorsTitle || "",
     executiveEditorsSubtitle: body.executiveEditorsSubtitle || "",
+    executiveEditorsShowBiographyPreview:
+      body.executiveEditorsShowBiographyPreview === true,
 
     articlesSectionTitle: body.articlesSectionTitle || "",
     articlesSectionSubtitle: body.articlesSectionSubtitle || "",

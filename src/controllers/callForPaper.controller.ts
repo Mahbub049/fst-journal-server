@@ -9,6 +9,8 @@ const DEFAULT_CALL_FOR_PAPER = {
   invitationLabel: "Publication Invitation",
   title: "Call for Papers",
   subtitle: "",
+  descriptionWidth: "normal",
+  descriptionAlignment: "justify",
   description:
     "The Faculty of Science and Technology, Bangladesh University of Professionals, invites authors to submit original and high-quality manuscripts for the upcoming issue of the Journal of FST. The journal welcomes research contributions in engineering, computer science, communication technology, environmental science, management, and related interdisciplinary fields.",
 
@@ -16,6 +18,11 @@ const DEFAULT_CALL_FOR_PAPER = {
   pdfUrl: "/pdfs/call-for-papers.pdf",
   pdfTitle: "Call for Papers Document",
   pdfSubtitle: "Volume 4, Issue 1",
+  showPdfActionButton: true,
+  pdfActionButtonLabel: "View PDF",
+  pdfActionButtonLink: "/pdfs/call-for-papers.pdf",
+  showPdfActionButtonIcon: true,
+  showEmbeddedPdfViewer: true,
 
   submissionFormatLabel: "Submission Format",
   submissionFormatTitle: "Types of Manuscripts Accepted",
@@ -27,6 +34,43 @@ const DEFAULT_CALL_FOR_PAPER = {
     "Book reviews",
     "Policy analysis",
     "Review articles",
+  ],
+  submissionTypeDetails: [
+    {
+      title: "Full research articles",
+      description:
+        "Complete original studies presenting a clear research problem, methodology, results, analysis, and contribution.",
+      order: 1,
+      isActive: true,
+    },
+    {
+      title: "Short communications",
+      description:
+        "Concise reports of significant new findings, methods, or early results that deserve rapid scholarly communication.",
+      order: 2,
+      isActive: true,
+    },
+    {
+      title: "Book reviews",
+      description:
+        "Critical and balanced evaluations of recently published academic books relevant to the journal's scope.",
+      order: 3,
+      isActive: true,
+    },
+    {
+      title: "Policy analysis",
+      description:
+        "Evidence-based examination of scientific, technological, environmental, or institutional policies and their implications.",
+      order: 4,
+      isActive: true,
+    },
+    {
+      title: "Review articles",
+      description:
+        "Structured synthesis and critical assessment of existing literature, trends, gaps, and future research directions.",
+      order: 5,
+      isActive: true,
+    },
   ],
 
   scopeLabel: "Scope of Submission",
@@ -158,12 +202,66 @@ const normalizeOptionalString = (value: unknown, fallback = "") => {
   return value.trim();
 };
 
+const sanitizeHtml = (value: unknown, fallback = "") => {
+  const html = normalizeOptionalString(value, fallback);
+  return html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
+    .replace(/javascript\s*:/gi, "");
+};
+
+const normalizeDescriptionWidth = (value: unknown) =>
+  value === "full" ? "full" : "normal";
+
+const normalizeTextAlignment = (value: unknown) =>
+  ["left", "center", "right", "justify"].includes(String(value))
+    ? String(value)
+    : "justify";
+
 const normalizeStringArray = (value: unknown, fallback: string[]) => {
   if (!Array.isArray(value)) return fallback;
 
   return value
     .map((item) => (typeof item === "string" ? item.trim() : ""))
     .filter(Boolean);
+};
+
+const normalizeSubmissionTypeDetails = (
+  value: unknown,
+  legacyValue: unknown
+) => {
+  const source =
+    Array.isArray(value) && value.length > 0
+      ? value
+      : Array.isArray(legacyValue)
+        ? legacyValue
+        : Array.isArray(value)
+          ? value
+          : DEFAULT_CALL_FOR_PAPER.submissionTypeDetails;
+
+  return source
+    .map((item: any, index: number) => {
+      if (typeof item === "string") {
+        return {
+          title: item.trim(),
+          description: "",
+          order: index + 1,
+          isActive: true,
+        };
+      }
+
+      return {
+        title: normalizeOptionalString(
+          item?.title ?? item?.name ?? item?.label
+        ),
+        description: sanitizeHtml(item?.description),
+        order: Number(item?.order ?? index + 1),
+        isActive: item?.isActive ?? true,
+      };
+    })
+    .filter((item) => item.title);
 };
 
 const normalizeImportantDates = (value: unknown) => {
@@ -182,30 +280,46 @@ const normalizeImportantDates = (value: unknown) => {
 };
 
 const normalizeCallForPaperPayload = (body: Record<string, any>) => {
+  const submissionTypeDetails = normalizeSubmissionTypeDetails(
+    body.submissionTypeDetails,
+    body.submissionTypes
+  );
+
   return {
     showInvitationLabel: body.showInvitationLabel ?? true,
     invitationLabel: normalizeOptionalString(body.invitationLabel),
     title: normalizeString(body.title, DEFAULT_CALL_FOR_PAPER.title),
     subtitle: normalizeOptionalString(body.subtitle, DEFAULT_CALL_FOR_PAPER.subtitle),
-    description: normalizeOptionalString(body.description),
+    description: sanitizeHtml(body.description),
+    descriptionWidth: normalizeDescriptionWidth(body.descriptionWidth),
+    descriptionAlignment: normalizeTextAlignment(body.descriptionAlignment),
 
     posterImage: normalizeOptionalString(body.posterImage),
     pdfUrl: normalizeString(body.pdfUrl, DEFAULT_CALL_FOR_PAPER.pdfUrl),
     pdfTitle: normalizeString(body.pdfTitle, DEFAULT_CALL_FOR_PAPER.pdfTitle),
     pdfSubtitle: normalizeString(body.pdfSubtitle, DEFAULT_CALL_FOR_PAPER.pdfSubtitle),
+    showPdfActionButton: body.showPdfActionButton ?? true,
+    pdfActionButtonLabel: normalizeString(
+      body.pdfActionButtonLabel,
+      DEFAULT_CALL_FOR_PAPER.pdfActionButtonLabel
+    ),
+    pdfActionButtonLink: normalizeString(
+      body.pdfActionButtonLink,
+      body.pdfUrl || DEFAULT_CALL_FOR_PAPER.pdfActionButtonLink
+    ),
+    showPdfActionButtonIcon: body.showPdfActionButtonIcon ?? true,
+    showEmbeddedPdfViewer: body.showEmbeddedPdfViewer ?? true,
 
     submissionFormatLabel: normalizeOptionalString(body.submissionFormatLabel),
     submissionFormatTitle: normalizeString(
       body.submissionFormatTitle,
       DEFAULT_CALL_FOR_PAPER.submissionFormatTitle
     ),
-    submissionFormatDescription: normalizeOptionalString(
+    submissionFormatDescription: sanitizeHtml(
       body.submissionFormatDescription
     ),
-    submissionTypes: normalizeStringArray(
-      body.submissionTypes,
-      DEFAULT_CALL_FOR_PAPER.submissionTypes
-    ),
+    submissionTypes: submissionTypeDetails.map((item) => item.title),
+    submissionTypeDetails,
 
     scopeLabel: normalizeOptionalString(body.scopeLabel),
     scopeTitle: normalizeString(body.scopeTitle, DEFAULT_CALL_FOR_PAPER.scopeTitle),
@@ -295,10 +409,24 @@ const normalizeCallForPaperPayload = (body: Record<string, any>) => {
 };
 
 const mergeWithDefaults = (data: Record<string, any> | null | undefined) => {
-  const merged = normalizeCallForPaperPayload({
+  const source: Record<string, any> = {
     ...DEFAULT_CALL_FOR_PAPER,
     ...(data || {}),
-  });
+  };
+
+  // Preserve legacy manuscript type titles when older records do not yet
+  // contain the new title/description structure.
+  if (
+    data &&
+    (!Array.isArray(data.submissionTypeDetails) ||
+      (data.submissionTypeDetails.length === 0 &&
+        Array.isArray(data.submissionTypes) &&
+        data.submissionTypes.length > 0))
+  ) {
+    delete source.submissionTypeDetails;
+  }
+
+  const merged = normalizeCallForPaperPayload(source);
 
   return {
     ...(data || {}),
@@ -439,9 +567,20 @@ export const uploadAdminCallForPaperPdf = async (
       callForPaper = await CallForPaper.create({
         ...DEFAULT_CALL_FOR_PAPER,
         pdfUrl: publicPdfUrl,
+        pdfActionButtonLink: publicPdfUrl,
       });
     } else {
+      const currentButtonLink = callForPaper.pdfActionButtonLink?.trim() || "";
+
       callForPaper.pdfUrl = publicPdfUrl;
+
+      if (
+        !currentButtonLink ||
+        currentButtonLink.startsWith("/pdfs/call-for-papers.pdf")
+      ) {
+        callForPaper.pdfActionButtonLink = publicPdfUrl;
+      }
+
       await callForPaper.save();
     }
 

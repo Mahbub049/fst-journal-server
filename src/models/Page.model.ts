@@ -1,6 +1,28 @@
 import mongoose, { Document, Model, Schema } from "mongoose";
 
 export type PageGroup = "about" | "for-authors" | "reviewers" | "issues" | "custom";
+export type CmsButtonIcon =
+  | "none"
+  | "download"
+  | "pdf"
+  | "latex"
+  | "document"
+  | "submit"
+  | "external"
+  | "arrow-right"
+  | "arrow-up-right";
+export type CmsButtonVariant = "primary" | "secondary" | "outline" | "light";
+export type CmsButtonLayout = "vertical" | "horizontal";
+
+export interface IPageActionButton {
+  label: string;
+  url: string;
+  icon: CmsButtonIcon;
+  variant: CmsButtonVariant;
+  openInNewTab: boolean;
+  order: number;
+  isActive: boolean;
+}
 export type ContentBlockType =
   | "paragraph"
   | "heading"
@@ -28,6 +50,7 @@ export interface IContentBlockStyle {
   columns?: number;
   headingLevel?: number;
   variant?: string;
+  buttonLayout?: CmsButtonLayout;
 }
 
 export interface IContentBlock {
@@ -39,6 +62,10 @@ export interface IContentBlock {
   fileUrl?: string;
   buttonLabel?: string;
   buttonUrl?: string;
+  showButton?: boolean;
+  buttonIcon?: CmsButtonIcon;
+  buttonVariant?: CmsButtonVariant;
+  buttonOpenInNewTab?: boolean;
   caption?: string;
   altText?: string;
   codeLanguage?: string;
@@ -59,6 +86,15 @@ export interface IPage extends Document {
   contentBlocks: IContentBlock[];
   buttonLabel?: string;
   buttonUrl?: string;
+  showButton: boolean;
+  buttonIcon: CmsButtonIcon;
+  buttonVariant: CmsButtonVariant;
+  buttonOpenInNewTab: boolean;
+  showHelpCard: boolean;
+  helpCardTitle: string;
+  helpCardContent: string;
+  helpCardButtonLayout: CmsButtonLayout;
+  helpCardButtons: IPageActionButton[];
   metaTitle?: string;
   metaDescription?: string;
   order: number;
@@ -87,6 +123,11 @@ const blockStyleSchema = new Schema<IContentBlockStyle>(
     columns: { type: Number, min: 1, max: 4, default: 2 },
     headingLevel: { type: Number, min: 1, max: 6, default: 2 },
     variant: { type: String, default: "default" },
+    buttonLayout: {
+      type: String,
+      enum: ["vertical", "horizontal"],
+      default: "vertical",
+    },
   },
   { _id: false }
 );
@@ -122,6 +163,28 @@ const contentBlockSchema = new Schema<IContentBlock>(
     fileUrl: { type: String, default: "" },
     buttonLabel: { type: String, default: "" },
     buttonUrl: { type: String, default: "" },
+    showButton: { type: Boolean, default: true },
+    buttonIcon: {
+      type: String,
+      enum: [
+        "none",
+        "download",
+        "pdf",
+        "latex",
+        "document",
+        "submit",
+        "external",
+        "arrow-right",
+        "arrow-up-right",
+      ],
+      default: "none",
+    },
+    buttonVariant: {
+      type: String,
+      enum: ["primary", "secondary", "outline", "light"],
+      default: "primary",
+    },
+    buttonOpenInNewTab: { type: Boolean, default: false },
     caption: { type: String, default: "" },
     altText: { type: String, default: "" },
     codeLanguage: { type: String, default: "" },
@@ -129,6 +192,38 @@ const contentBlockSchema = new Schema<IContentBlock>(
     // Mixed keeps nested blocks recursive without limiting nesting depth.
     // The controller validates and normalizes every nested item before saving.
     children: { type: [Schema.Types.Mixed], default: [] },
+    order: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
+  },
+  { _id: true }
+);
+
+
+const pageActionButtonSchema = new Schema<IPageActionButton>(
+  {
+    label: { type: String, default: "", trim: true },
+    url: { type: String, default: "", trim: true },
+    icon: {
+      type: String,
+      enum: [
+        "none",
+        "download",
+        "pdf",
+        "latex",
+        "document",
+        "submit",
+        "external",
+        "arrow-right",
+        "arrow-up-right",
+      ],
+      default: "none",
+    },
+    variant: {
+      type: String,
+      enum: ["primary", "secondary", "outline", "light"],
+      default: "primary",
+    },
+    openInNewTab: { type: Boolean, default: false },
     order: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
   },
@@ -151,6 +246,44 @@ const pageSchema = new Schema<IPage>(
     contentBlocks: { type: [contentBlockSchema], default: [] },
     buttonLabel: { type: String, default: "" },
     buttonUrl: { type: String, default: "" },
+    showButton: { type: Boolean, default: true },
+    buttonIcon: {
+      type: String,
+      enum: [
+        "none",
+        "download",
+        "pdf",
+        "latex",
+        "document",
+        "submit",
+        "external",
+        "arrow-right",
+        "arrow-up-right",
+      ],
+      default: "none",
+    },
+    buttonVariant: {
+      type: String,
+      enum: ["primary", "secondary", "outline", "light"],
+      default: "primary",
+    },
+    buttonOpenInNewTab: { type: Boolean, default: false },
+    showHelpCard: { type: Boolean, default: true },
+    helpCardTitle: {
+      type: String,
+      default: "Need help preparing your manuscript?",
+    },
+    helpCardContent: {
+      type: String,
+      default:
+        "Please review the author guidelines, submission checklist, and call for papers notice before final submission.",
+    },
+    helpCardButtonLayout: {
+      type: String,
+      enum: ["vertical", "horizontal"],
+      default: "horizontal",
+    },
+    helpCardButtons: { type: [pageActionButtonSchema], default: [] },
     metaTitle: { type: String, default: "" },
     metaDescription: { type: String, default: "" },
     order: { type: Number, default: 0 },

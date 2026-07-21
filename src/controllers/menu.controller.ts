@@ -33,6 +33,31 @@ const normalizeMenuPayload = (body: Record<string, any>) => ({
   isActive: body.isActive ?? true,
 });
 
+const normalizeMenuLabel = (value: unknown) =>
+  String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "");
+
+const findDuplicateMenu = async (
+  location: MenuLocation,
+  parentId: string | null,
+  label: string,
+  excludeId?: string
+) => {
+  const siblings = await Menu.find({
+    location,
+    parentId: parentId || null,
+    ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+  }).select("_id label");
+
+  const normalizedLabel = normalizeMenuLabel(label);
+  return siblings.find(
+    (menu) => normalizeMenuLabel(menu.label) === normalizedLabel
+  );
+};
+
 const getNextOrder = async (location: MenuLocation, parentId: string | null) =>
   Menu.countDocuments({ location, parentId: parentId || null });
 
@@ -151,6 +176,19 @@ export const createAdminMenu = async (
 
     await validateParent(payload.parentId);
 
+    const duplicate = await findDuplicateMenu(
+      payload.location,
+      payload.parentId,
+      payload.label
+    );
+    if (duplicate) {
+      res.status(409).json({
+        success: false,
+        message: "A menu item with this label already exists in the same location.",
+      });
+      return;
+    }
+
     const order = await getNextOrder(payload.location, payload.parentId);
     const menu = await Menu.create({ ...payload, order });
 
@@ -193,6 +231,20 @@ export const updateAdminMenu = async (
     const previousLocation = menu.location;
     const previousParentId = menu.parentId ? String(menu.parentId) : null;
     await validateParent(payload.parentId, String(menu._id));
+
+    const duplicate = await findDuplicateMenu(
+      payload.location,
+      payload.parentId,
+      payload.label,
+      String(menu._id)
+    );
+    if (duplicate) {
+      res.status(409).json({
+        success: false,
+        message: "A menu item with this label already exists in the same location.",
+      });
+      return;
+    }
 
     if (menu.type === "dropdown" && payload.type !== "dropdown") {
       const childCount = await Menu.countDocuments({ parentId: menu._id });

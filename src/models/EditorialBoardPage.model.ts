@@ -27,6 +27,8 @@ export interface IEditorialBoardPage extends Document {
   chiefEditorResponsibilityDescription: string;
   showSummaryCards: boolean;
   showTotalCard: boolean;
+  showEditorialOffice: boolean;
+  editorialOfficeEyebrow: string;
   editorialOfficeTitle: string;
   editorialOfficeDescription: string;
   editorialOfficePublisher: string;
@@ -34,6 +36,9 @@ export interface IEditorialBoardPage extends Document {
   editorialOfficeAddress: string;
   editorialOfficeEmail: string;
   editorialOfficePhone: string;
+  showEditorialOfficeEmailButton: boolean;
+  editorialOfficeEmailButtonLabel: string;
+  editorialOfficeEmailSubject: string;
   categories: IEditorialCategorySetting[];
   editorialAreas: IEditorialAreaSetting[];
 }
@@ -92,6 +97,12 @@ const editorialBoardPageSchema = new Schema<IEditorialBoardPage>(
     },
     showSummaryCards: { type: Boolean, default: true },
     showTotalCard: { type: Boolean, default: true },
+    showEditorialOffice: { type: Boolean, default: true },
+    editorialOfficeEyebrow: {
+      type: String,
+      default: "Editorial Office",
+      trim: true,
+    },
     editorialOfficeTitle: {
       type: String,
       default: "Editorial Office",
@@ -124,6 +135,17 @@ const editorialBoardPageSchema = new Schema<IEditorialBoardPage>(
       lowercase: true,
     },
     editorialOfficePhone: { type: String, default: "", trim: true },
+    showEditorialOfficeEmailButton: { type: Boolean, default: true },
+    editorialOfficeEmailButtonLabel: {
+      type: String,
+      default: "Email Editorial Office",
+      trim: true,
+    },
+    editorialOfficeEmailSubject: {
+      type: String,
+      default: "Journal of FST editorial office inquiry",
+      trim: true,
+    },
     categories: ({
       type: [categorySchema],
       default: [
