@@ -322,6 +322,7 @@ export const updateAdminEditorialBoardConfig = async (
       showSummaryCards: req.body.showSummaryCards ?? true,
       showTotalCard: req.body.showTotalCard ?? true,
       showEditorialOffice: req.body.showEditorialOffice ?? true,
+      showEditorialOfficeEyebrow: req.body.showEditorialOfficeEyebrow ?? true,
       editorialOfficeEyebrow: String(
         req.body.editorialOfficeEyebrow || "Editorial Office"
       ).trim(),

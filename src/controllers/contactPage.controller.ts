@@ -28,6 +28,7 @@ const DEFAULT_CONTACT_PAGE = {
   supportTitle: "Author Support",
   supportDescription:
     "For any queries regarding manuscript submission, processing, or publication requirements, please contact the Editorial Office.",
+  supportEmail: "editor.fstjournal@bup.edu.bd",
   emailButtonLabel: "Email Editorial Office",
   emailSubject: "Journal of FST editorial office inquiry",
   isPublished: true,
@@ -67,6 +68,7 @@ const normalizePayload = (body: Record<string, any>) => ({
   supportEyebrow: optionalString(body.supportEyebrow),
   supportTitle: optionalString(body.supportTitle),
   supportDescription: optionalString(body.supportDescription),
+  supportEmail: optionalString(body.supportEmail || body.email),
   emailButtonLabel: optionalString(body.emailButtonLabel),
   emailSubject: optionalString(body.emailSubject),
   isPublished: body.isPublished ?? true,

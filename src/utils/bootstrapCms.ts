@@ -1,3 +1,4 @@
+import CallForPaper from "../models/CallForPaper.model";
 import Homepage from "../models/Homepage.model";
 import Menu from "../models/Menu.model";
 import Page, { PageGroup } from "../models/Page.model";
@@ -12,6 +13,62 @@ const INITIAL_PAGE_SEED_KEY = "initial-page-seed-v1";
 const INITIAL_MENU_SEED_KEY = "initial-menu-seed-v1";
 const INITIAL_SITE_SETTINGS_SEED_KEY = "initial-site-settings-seed-v1";
 
+
+const replaceLegacyAuthorsNaming = (value: unknown): unknown => {
+  if (typeof value === "string") {
+    if (value === "for-authors") return "authors";
+
+    return value
+      .replace(/\/for-authors(?=\/|$)/g, "/authors")
+      .replace(/\bFor Authors\b/g, "Authors");
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => replaceLegacyAuthorsNaming(item));
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        replaceLegacyAuthorsNaming(item),
+      ])
+    );
+  }
+
+  return value;
+};
+
+const migrateAuthorsNaming = async () => {
+  const collections = [Page, Menu, SiteSettings, Homepage, CallForPaper];
+  let updatedCount = 0;
+
+  for (const model of collections) {
+    const documents = await model.collection.find({}).toArray();
+
+    for (const document of documents) {
+      const migrated = replaceLegacyAuthorsNaming(document) as Record<
+        string,
+        unknown
+      >;
+
+      if (JSON.stringify(migrated) === JSON.stringify(document)) continue;
+
+      const { _id, ...updates } = migrated;
+      await model.collection.updateOne({ _id: document._id }, { $set: updates });
+      updatedCount += 1;
+    }
+  }
+
+  if (updatedCount > 0) {
+    console.log(`Updated ${updatedCount} CMS document(s) to the Authors naming.`);
+  }
+};
+
 const normalizeLabel = (value: unknown) =>
   String(value || "")
     .toLowerCase()
@@ -22,7 +79,7 @@ const normalizeLabel = (value: unknown) =>
 const getPublicPageUrl = (group: PageGroup, slug: string) => {
   if (group === "about" && slug === "contact-us") return "/contact";
   if (group === "about") return `/about/${slug}`;
-  if (group === "for-authors") return `/for-authors/${slug}`;
+  if (group === "authors") return `/authors/${slug}`;
   if (group === "reviewers") return `/reviewers/${slug}`;
   if (group === "issues") return `/issues/${slug}`;
   return `/${slug}`;
@@ -31,7 +88,7 @@ const getPublicPageUrl = (group: PageGroup, slug: string) => {
 const getMenuLocationForPageGroup = (group: PageGroup) => {
   if (
     group === "about" ||
-    group === "for-authors" ||
+    group === "authors" ||
     group === "reviewers" ||
     group === "issues"
   ) {
@@ -203,6 +260,8 @@ const cleanupDuplicateMenus = async () => {
 };
 
 export const bootstrapCms = async () => {
+  await migrateAuthorsNaming();
+
   await runSeedOnce(
     INITIAL_PAGE_SEED_KEY,
     async () => Boolean(await Page.exists({})),

@@ -28,6 +28,7 @@ export interface IEditorialBoardPage extends Document {
   showSummaryCards: boolean;
   showTotalCard: boolean;
   showEditorialOffice: boolean;
+  showEditorialOfficeEyebrow: boolean;
   editorialOfficeEyebrow: string;
   editorialOfficeTitle: string;
   editorialOfficeDescription: string;
@@ -98,6 +99,7 @@ const editorialBoardPageSchema = new Schema<IEditorialBoardPage>(
     showSummaryCards: { type: Boolean, default: true },
     showTotalCard: { type: Boolean, default: true },
     showEditorialOffice: { type: Boolean, default: true },
+    showEditorialOfficeEyebrow: { type: Boolean, default: true },
     editorialOfficeEyebrow: {
       type: String,
       default: "Editorial Office",

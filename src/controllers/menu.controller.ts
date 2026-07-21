@@ -6,7 +6,7 @@ const allowedLocations: MenuLocation[] = [
   "main",
   "about",
   "issues",
-  "for-authors",
+  "authors",
   "reviewers",
   "editorial-board",
   "footer",

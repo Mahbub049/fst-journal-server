@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema } from "mongoose";
 
-export type PageGroup = "about" | "for-authors" | "reviewers" | "issues" | "custom";
+export type PageGroup = "about" | "authors" | "reviewers" | "issues" | "custom";
 export type CmsButtonIcon =
   | "none"
   | "download"
@@ -236,7 +236,7 @@ const pageSchema = new Schema<IPage>(
     slug: { type: String, required: true, lowercase: true, trim: true },
     group: {
       type: String,
-      enum: ["about", "for-authors", "reviewers", "issues", "custom"],
+      enum: ["about", "authors", "reviewers", "issues", "custom"],
       required: true,
     },
     showTopLabel: { type: Boolean, default: true },

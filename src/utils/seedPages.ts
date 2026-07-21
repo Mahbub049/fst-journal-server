@@ -174,7 +174,7 @@ const defaultPages = [
   {
     title: "Author Guidelines",
     slug: "author-guidelines",
-    group: "for-authors",
+    group: "authors",
     subtitle:
       "Detailed instructions for preparing manuscripts for the BUP Faculty of Science and Technology Journal.",
     order: 1,
@@ -217,7 +217,7 @@ const defaultPages = [
   {
     title: "Submission Guidelines",
     slug: "submission-guidelines",
-    group: "for-authors",
+    group: "authors",
     subtitle:
       "Submission instructions, required documents, and communication process for authors.",
     order: 2,
@@ -254,7 +254,7 @@ const defaultPages = [
   {
     title: "Peer Review Process",
     slug: "peer-review-process",
-    group: "for-authors",
+    group: "authors",
     subtitle: "The editorial board reviews submitted manuscripts before publication.",
     order: 3,
     contentBlocks: [
@@ -283,7 +283,7 @@ const defaultPages = [
   {
     title: "Article Processing Charge",
     slug: "article-processing-charge",
-    group: "for-authors",
+    group: "authors",
     subtitle: "Information about article processing or publication-related charges.",
     order: 4,
     contentBlocks: [
@@ -302,7 +302,7 @@ const defaultPages = [
   {
     title: "Copyright & Licensing",
     slug: "copyright-licensing",
-    group: "for-authors",
+    group: "authors",
     subtitle: "Rules regarding originality, copyright permission, and author responsibility.",
     order: 5,
     contentBlocks: [
@@ -331,7 +331,7 @@ const defaultPages = [
   {
     title: "Templates",
     slug: "templates",
-    group: "for-authors",
+    group: "authors",
     subtitle: "Manuscript template and final accepted paper formatting instructions.",
     order: 6,
     contentBlocks: [

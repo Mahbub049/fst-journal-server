@@ -11,7 +11,7 @@ import Page, {
 } from "../models/Page.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 
-const allowedGroups: PageGroup[] = ["about", "for-authors", "reviewers", "issues", "custom"];
+const allowedGroups: PageGroup[] = ["about", "authors", "reviewers", "issues", "custom"];
 const allowedBlockTypes: ContentBlockType[] = [
   "paragraph",
   "heading",
@@ -69,7 +69,7 @@ const findDuplicatePage = async (
 const getPublicPageUrl = (group: PageGroup, slug: string) => {
   if (group === "about" && slug === "contact-us") return "/contact";
   if (group === "about") return `/about/${slug}`;
-  if (group === "for-authors") return `/for-authors/${slug}`;
+  if (group === "authors") return `/authors/${slug}`;
   if (group === "reviewers") return `/reviewers/${slug}`;
   if (group === "issues") return `/issues/${slug}`;
   return `/${slug}`;
@@ -358,7 +358,7 @@ export const createAdminPage = async (
       buttonIcon: normalizeButtonIcon(req.body.buttonIcon),
       buttonVariant: normalizeButtonVariant(req.body.buttonVariant),
       buttonOpenInNewTab: req.body.buttonOpenInNewTab ?? false,
-      showHelpCard: req.body.showHelpCard ?? group === "for-authors",
+      showHelpCard: req.body.showHelpCard ?? group === "authors",
       helpCardTitle: String(req.body.helpCardTitle || ""),
       helpCardContent: sanitizeHtml(req.body.helpCardContent),
       helpCardButtonLayout: normalizeButtonLayout(
@@ -443,7 +443,7 @@ export const updateAdminPage = async (
     page.buttonOpenInNewTab =
       req.body.buttonOpenInNewTab ?? page.buttonOpenInNewTab ?? false;
     page.showHelpCard =
-      req.body.showHelpCard ?? page.showHelpCard ?? group === "for-authors";
+      req.body.showHelpCard ?? page.showHelpCard ?? group === "authors";
     page.helpCardTitle = String(
       req.body.helpCardTitle ?? page.helpCardTitle ?? ""
     );

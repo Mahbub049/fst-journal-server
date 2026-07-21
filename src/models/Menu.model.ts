@@ -4,7 +4,7 @@ export type MenuLocation =
   | "main"
   | "about"
   | "issues"
-  | "for-authors"
+  | "authors"
   | "reviewers"
   | "editorial-board"
   | "footer";
@@ -33,7 +33,7 @@ const menuSchema = new Schema<IMenu>(
 
     location: {
       type: String,
-      enum: ["main", "about", "issues", "for-authors", "reviewers", "editorial-board", "footer"],
+      enum: ["main", "about", "issues", "authors", "reviewers", "editorial-board", "footer"],
       required: true,
       default: "main",
     },

@@ -102,7 +102,7 @@ export const seedHomepage = async () => {
       },
       {
         label: "Author Guidelines",
-        url: "/for-authors/author-guidelines",
+        url: "/authors/author-guidelines",
         variant: "secondary",
         order: 2,
         isActive: true,

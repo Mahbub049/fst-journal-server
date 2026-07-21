@@ -323,7 +323,7 @@ const callForPaperSchema = new Schema<ICallForPaper>(
     },
     guidelinesButtonLink: {
       type: String,
-      default: "/for-authors/submission-guidelines",
+      default: "/authors/submission-guidelines",
       trim: true,
     },
 

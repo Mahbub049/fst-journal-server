@@ -23,6 +23,7 @@ export interface IContactPage extends Document {
   supportEyebrow: string;
   supportTitle: string;
   supportDescription: string;
+  supportEmail: string;
   emailButtonLabel: string;
   emailSubject: string;
   isPublished: boolean;
@@ -79,6 +80,12 @@ const contactPageSchema = new Schema<IContactPage>(
       type: String,
       default:
         "For any queries regarding manuscript submission, processing, or publication requirements, please contact the Editorial Office.",
+    },
+    supportEmail: {
+      type: String,
+      default: "editor.fstjournal@bup.edu.bd",
+      trim: true,
+      lowercase: true,
     },
     emailButtonLabel: {
       type: String,
