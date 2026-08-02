@@ -2,18 +2,24 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+const requiredEnv = (name: string): string => {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return value;
+};
+
 export const env = {
   port: process.env.PORT || "5000",
 
   nodeEnv: process.env.NODE_ENV || "development",
 
-  mongoUri:
-    process.env.MONGODB_URI ||
-    "mongodb+srv://bupfstjournal:4fu0kRMcp9XUgidB@cluster0.h0zb1dz.mongodb.net/bupfstjournal?appName=Cluster0",
+mongoUri: requiredEnv("MONGODB_URI"),
 
-  jwtSecret:
-    process.env.JWT_SECRET ||
-    "b7bce970d49139b44ed3baf50298967657088c4154b120eb66ceebb09cf93ec8",
+jwtSecret: requiredEnv("JWT_SECRET"),
 
   clientUrl: process.env.CLIENT_URL || "http://localhost:3000",
 
