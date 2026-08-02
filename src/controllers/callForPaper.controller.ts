@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
 import fs from "fs/promises";
 import path from "path";
-import CallForPaper from "../models/CallForPaper.model";
+import CallForPaper, {
+  ICallForPaper,
+} from "../models/CallForPaper.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 
 const DEFAULT_CALL_FOR_PAPER = {
@@ -189,7 +191,7 @@ const DEFAULT_CALL_FOR_PAPER = {
   publisherInfo: "Bangladesh University of Professionals",
 
   isPublished: true,
-};
+} satisfies Partial<ICallForPaper>;
 
 const normalizeString = (value: unknown, fallback: string) => {
   if (typeof value !== "string") return fallback;
@@ -212,14 +214,29 @@ const sanitizeHtml = (value: unknown, fallback = "") => {
     .replace(/javascript\s*:/gi, "");
 };
 
-const normalizeDescriptionWidth = (value: unknown) =>
+const normalizeDescriptionWidth = (
+  value: unknown
+): ICallForPaper["descriptionWidth"] =>
   value === "full" ? "full" : "normal";
 
-const normalizeTextAlignment = (value: unknown) =>
-  ["left", "center", "right", "justify"].includes(String(value))
-    ? String(value)
-    : "justify";
+const normalizeTextAlignment = (
+  value: unknown
+): ICallForPaper["descriptionAlignment"] => {
+  const normalized = String(value);
 
+  const allowedAlignments: ICallForPaper["descriptionAlignment"][] = [
+    "left",
+    "center",
+    "right",
+    "justify",
+  ];
+
+  return allowedAlignments.includes(
+    normalized as ICallForPaper["descriptionAlignment"]
+  )
+    ? (normalized as ICallForPaper["descriptionAlignment"])
+    : "justify";
+};
 const normalizeStringArray = (value: unknown, fallback: string[]) => {
   if (!Array.isArray(value)) return fallback;
 

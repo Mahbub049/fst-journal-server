@@ -264,8 +264,34 @@ export const getPublicPageByGroupAndSlug = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { group, slug } = req.params;
-    const page = await Page.findOne({ group, slug, isPublished: true }).select("-__v");
+const groupValue = req.params.group;
+const slugValue = req.params.slug;
+
+const group = Array.isArray(groupValue)
+  ? groupValue[0]
+  : groupValue;
+
+const slug = Array.isArray(slugValue)
+  ? slugValue[0]
+  : slugValue;
+
+if (
+  !group ||
+  !slug ||
+  !allowedGroups.includes(group as PageGroup)
+) {
+  res.status(400).json({
+    success: false,
+    message: "Invalid page group or slug.",
+  });
+  return;
+}
+
+const page = await Page.findOne({
+  group: group as PageGroup,
+  slug,
+  isPublished: true,
+}).select("-__v");
 
     if (!page) {
       res.status(404).json({ success: false, message: "Page not found." });

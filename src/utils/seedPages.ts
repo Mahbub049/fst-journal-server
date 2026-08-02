@@ -1,4 +1,17 @@
-import Page from "../models/Page.model";
+import Page, {
+  IContentBlock,
+  IPage,
+} from "../models/Page.model";
+
+type SeedPage = Pick<
+  IPage,
+  | "title"
+  | "slug"
+  | "group"
+  | "subtitle"
+  | "order"
+  | "contentBlocks"
+>;
 
 const oldSeedContents = new Set([
   "The BUP FST Journal is an academic publication platform for research and scholarly communication.",
@@ -15,7 +28,11 @@ const oldSeedContents = new Set([
   "This page provides downloadable templates and author resources.",
 ]);
 
-const paragraphBlock = (title: string, content: string, order: number) => ({
+const paragraphBlock = (
+  title: string,
+  content: string,
+  order: number
+): IContentBlock => ({
   type: "paragraph",
   title,
   content,
@@ -23,7 +40,11 @@ const paragraphBlock = (title: string, content: string, order: number) => ({
   isActive: true,
 });
 
-const listBlock = (title: string, items: string[], order: number) => ({
+const listBlock = (
+  title: string,
+  items: string[],
+  order: number
+): IContentBlock => ({
   type: "list",
   title,
   items,
@@ -31,7 +52,7 @@ const listBlock = (title: string, items: string[], order: number) => ({
   isActive: true,
 });
 
-const defaultPages = [
+const defaultPages: SeedPage[] = [
   {
     title: "About the Journal",
     slug: "about-the-journal",

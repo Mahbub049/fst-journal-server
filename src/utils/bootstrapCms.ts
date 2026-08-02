@@ -1,6 +1,9 @@
+import mongoose from "mongoose";
 import CallForPaper from "../models/CallForPaper.model";
 import Homepage from "../models/Homepage.model";
-import Menu from "../models/Menu.model";
+import Menu, {
+  MenuLocation,
+} from "../models/Menu.model";
 import Page, { PageGroup } from "../models/Page.model";
 import SiteSettings from "../models/SiteSettings.model";
 import SystemState from "../models/SystemState.model";
@@ -196,12 +199,42 @@ const cleanupDuplicatePages = async () => {
   }
 };
 
+const allowedMenuLocations: MenuLocation[] = [
+  "main",
+  "about",
+  "issues",
+  "authors",
+  "reviewers",
+  "editorial-board",
+  "footer",
+];
+
 const normalizeMenuOrders = async (placementKeys: Set<string>) => {
   for (const placementKey of placementKeys) {
-    const [location, parentIdValue] = placementKey.split("::");
-    const parentId = parentIdValue === "root" ? null : parentIdValue;
+    const [locationValue, parentIdValue] =
+      placementKey.split("::");
 
-    const menus = await Menu.find({ location, parentId })
+    if (
+      !locationValue ||
+      !parentIdValue ||
+      !allowedMenuLocations.includes(
+        locationValue as MenuLocation
+      )
+    ) {
+      continue;
+    }
+
+    const location = locationValue as MenuLocation;
+
+    const parentId =
+      parentIdValue === "root"
+        ? null
+        : new mongoose.Types.ObjectId(parentIdValue);
+
+    const menus = await Menu.find({
+      location,
+      parentId,
+    })
       .sort({ order: 1, createdAt: 1, label: 1 })
       .select("_id");
 
