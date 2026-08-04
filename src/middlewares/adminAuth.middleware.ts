@@ -48,7 +48,15 @@ export const protectAdmin = async (
 
     const token = authHeader.split(" ")[1];
 
-    const decoded = jwt.verify(token, env.jwtSecret) as JwtPayload;
+    const decoded = jwt.verify(
+      token,
+      env.jwtSecret,
+      {
+        algorithms: ["HS256"],
+        issuer: env.jwtIssuer,
+        audience: env.jwtAudience,
+      }
+    ) as JwtPayload;
 
     if (!decoded.sid) {
       res.status(401).json({
