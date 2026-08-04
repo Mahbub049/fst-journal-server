@@ -10,6 +10,7 @@ import Page, {
   PageGroup,
 } from "../models/Page.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
+import { sanitizeRichHtml } from "../utils/sanitizeRichHtml";
 
 const allowedGroups: PageGroup[] = ["about", "authors", "reviewers", "issues", "custom"];
 const allowedBlockTypes: ContentBlockType[] = [
@@ -75,16 +76,16 @@ const getPublicPageUrl = (group: PageGroup, slug: string) => {
   return `/${slug}`;
 };
 
-const sanitizeHtml = (value: unknown) => {
-  const html = String(value || "");
+// const sanitizeHtml = (value: unknown) => {
+//   const html = String(value || "");
 
-  return html
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
-    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
-    .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
-    .replace(/javascript\s*:/gi, "");
-};
+//   return html
+//     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+//     .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+//     .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
+//     .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
+//     .replace(/javascript\s*:/gi, "");
+// };
 
 const sanitizeUrl = (value: unknown) => {
   const url = String(value || "").trim();
@@ -194,8 +195,8 @@ const normalizeContentBlocks = (
       return {
         type,
         title: String(rawBlock?.title || "").trim(),
-        content: sanitizeHtml(rawBlock?.content),
-        items: normalizeStringArray(rawBlock?.items).map((item) => sanitizeHtml(item)),
+        content: sanitizeRichHtml(rawBlock?.content),
+        items: normalizeStringArray(rawBlock?.items).map((item) => sanitizeRichHtml(item)),
         imageUrl: sanitizeUrl(rawBlock?.imageUrl),
         fileUrl: sanitizeUrl(rawBlock?.fileUrl),
         buttonLabel: String(rawBlock?.buttonLabel || "").trim(),
@@ -386,7 +387,7 @@ export const createAdminPage = async (
       buttonOpenInNewTab: req.body.buttonOpenInNewTab ?? false,
       showHelpCard: req.body.showHelpCard ?? group === "authors",
       helpCardTitle: String(req.body.helpCardTitle || ""),
-      helpCardContent: sanitizeHtml(req.body.helpCardContent),
+      helpCardContent: sanitizeRichHtml(req.body.helpCardContent),
       helpCardButtonLayout: normalizeButtonLayout(
         req.body.helpCardButtonLayout || "horizontal"
       ),
@@ -473,7 +474,7 @@ export const updateAdminPage = async (
     page.helpCardTitle = String(
       req.body.helpCardTitle ?? page.helpCardTitle ?? ""
     );
-    page.helpCardContent = sanitizeHtml(
+    page.helpCardContent = sanitizeRichHtml(
       req.body.helpCardContent ?? page.helpCardContent ?? ""
     );
     page.helpCardButtonLayout = normalizeButtonLayout(

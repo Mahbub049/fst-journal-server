@@ -6,6 +6,7 @@ import CallForPaper, {
 } from "../models/CallForPaper.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 import { detectAllowedUploadMimeType } from "../utils/fileSignature";
+import { sanitizeRichHtml } from "../utils/sanitizeRichHtml";
 
 const DEFAULT_CALL_FOR_PAPER = {
   showInvitationLabel: true,
@@ -205,15 +206,15 @@ const normalizeOptionalString = (value: unknown, fallback = "") => {
   return value.trim();
 };
 
-const sanitizeHtml = (value: unknown, fallback = "") => {
-  const html = normalizeOptionalString(value, fallback);
-  return html
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
-    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
-    .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
-    .replace(/javascript\s*:/gi, "");
-};
+// const sanitizeHtml = (value: unknown, fallback = "") => {
+//   const html = normalizeOptionalString(value, fallback);
+//   return html
+//     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+//     .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+//     .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
+//     .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
+//     .replace(/javascript\s*:/gi, "");
+// };
 
 const normalizeDescriptionWidth = (
   value: unknown
@@ -274,7 +275,7 @@ const normalizeSubmissionTypeDetails = (
         title: normalizeOptionalString(
           item?.title ?? item?.name ?? item?.label
         ),
-        description: sanitizeHtml(item?.description),
+        description: sanitizeRichHtml(item?.description),
         order: Number(item?.order ?? index + 1),
         isActive: item?.isActive ?? true,
       };
@@ -308,7 +309,7 @@ const normalizeCallForPaperPayload = (body: Record<string, any>) => {
     invitationLabel: normalizeOptionalString(body.invitationLabel),
     title: normalizeString(body.title, DEFAULT_CALL_FOR_PAPER.title),
     subtitle: normalizeOptionalString(body.subtitle, DEFAULT_CALL_FOR_PAPER.subtitle),
-    description: sanitizeHtml(body.description),
+    description: sanitizeRichHtml(body.description),
     descriptionWidth: normalizeDescriptionWidth(body.descriptionWidth),
     descriptionAlignment: normalizeTextAlignment(body.descriptionAlignment),
 
@@ -333,7 +334,7 @@ const normalizeCallForPaperPayload = (body: Record<string, any>) => {
       body.submissionFormatTitle,
       DEFAULT_CALL_FOR_PAPER.submissionFormatTitle
     ),
-    submissionFormatDescription: sanitizeHtml(
+    submissionFormatDescription: sanitizeRichHtml(
       body.submissionFormatDescription
     ),
     submissionTypes: submissionTypeDetails.map((item) => item.title),

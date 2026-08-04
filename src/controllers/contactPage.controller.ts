@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import ContactPage from "../models/ContactPage.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
+import { sanitizeRichHtml } from "../utils/sanitizeRichHtml";
 
 const DEFAULT_CONTACT_PAGE = {
   showEyebrow: true,
@@ -37,13 +38,13 @@ const DEFAULT_CONTACT_PAGE = {
 const optionalString = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
-const sanitizeHtml = (value: unknown) =>
-  String(value || "")
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
-    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
-    .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
-    .replace(/javascript\s*:/gi, "");
+// const sanitizeHtml = (value: unknown) =>
+//   String(value || "")
+//     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+//     .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+//     .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
+//     .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
+//     .replace(/javascript\s*:/gi, "");
 
 const normalizePayload = (body: Record<string, any>) => ({
   showEyebrow: body.showEyebrow ?? true,
@@ -51,7 +52,9 @@ const normalizePayload = (body: Record<string, any>) => ({
   title: optionalString(body.title),
   subtitle: optionalString(body.subtitle),
   contentTitle: optionalString(body.contentTitle),
-  contentHtml: sanitizeHtml(body.contentHtml),
+contentHtml: sanitizeRichHtml(
+  body.contentHtml
+),
   officeEyebrow: optionalString(body.officeEyebrow),
   officeTitle: optionalString(body.officeTitle),
   officeDescription: optionalString(body.officeDescription),
