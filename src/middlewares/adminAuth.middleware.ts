@@ -36,17 +36,31 @@ export const protectAdmin = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
+    const cookieToken =
+      typeof req.cookies?.admin_session ===
+        "string"
+        ? req.cookies.admin_session
+        : undefined;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const authHeader =
+      req.headers.authorization;
+
+    const bearerToken =
+      authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7).trim()
+        : undefined;
+
+    const token =
+      cookieToken || bearerToken;
+
+    if (!token) {
       res.status(401).json({
         success: false,
-        message: "Unauthorized. No token provided.",
+        message:
+          "Unauthorized. No session was provided.",
       });
       return;
     }
-
-    const token = authHeader.split(" ")[1];
 
     const decoded = jwt.verify(
       token,

@@ -9,8 +9,10 @@ import { bootstrapCms } from "./utils/bootstrapCms";
 import { startCitationSyncScheduler } from "./services/citationScheduler.service";
 import helmet from "helmet";
 import multer from "multer";
+import cookieParser from "cookie-parser";
 
 const app = express();
+app.use(cookieParser());
 app.disable("x-powered-by");
 
 app.use(

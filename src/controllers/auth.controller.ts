@@ -1,4 +1,8 @@
-import { Request, Response } from "express";
+import {
+  CookieOptions,
+  Request,
+  Response,
+} from "express";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import Admin, { IAdmin } from "../models/Admin.model";
@@ -8,6 +12,30 @@ import {
   sendAdminLoginOtpEmail,
   sendAdminPasswordResetOtpEmail,
 } from "../services/brevoEmail.service";
+
+const ADMIN_SESSION_COOKIE = "admin_session";
+
+const getAdminSessionCookieOptions = (): CookieOptions => ({
+  httpOnly: true,
+  secure: env.nodeEnv === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: 8 * 60 * 60 * 1000,
+});
+
+const clearAdminSessionCookie = (
+  res: Response
+): void => {
+  const {
+    maxAge: _maxAge,
+    ...clearOptions
+  } = getAdminSessionCookieOptions();
+
+  res.clearCookie(
+    ADMIN_SESSION_COOKIE,
+    clearOptions
+  );
+};
 
 const createToken = (
   adminId: string,
@@ -325,6 +353,11 @@ export const verifyAdminOtp = async (
 
     const token = createToken(String(admin._id), admin.role, sessionSecret);
 
+    res.cookie(
+      ADMIN_SESSION_COOKIE,
+      token,
+      getAdminSessionCookieOptions()
+    );
     res.status(200).json({
       success: true,
       message: "Login successful.",
@@ -539,6 +572,8 @@ export const resetAdminPassword = async (
 
     await admin.save();
 
+clearAdminSessionCookie(res);
+
     res.status(200).json({
       success: true,
       message: "Password has been reset successfully. Please login again.",
@@ -567,11 +602,14 @@ export const logoutAdmin = async (
       },
     });
 
+    clearAdminSessionCookie(res);
+
     res.status(200).json({
       success: true,
       message: "Logged out successfully.",
     });
   } catch (error) {
+    clearAdminSessionCookie(res);
     console.error("Admin logout error:", error);
 
     res.status(500).json({
