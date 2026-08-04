@@ -7,8 +7,18 @@ import { connectDB } from "./config/db";
 import { seedAdmin } from "./utils/seedAdmin";
 import { bootstrapCms } from "./utils/bootstrapCms";
 import { startCitationSyncScheduler } from "./services/citationScheduler.service";
+import helmet from "helmet";
 
 const app = express();
+app.disable("x-powered-by");
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: {
+      policy: "cross-origin",
+    },
+  })
+);
 
 let databaseReadyPromise: Promise<void> | null = null;
 
@@ -55,8 +65,20 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: "20mb" }));
-app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+app.use(
+  express.json({
+    limit: "2mb",
+    strict: true,
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: false,
+    limit: "2mb",
+    parameterLimit: 100,
+  })
+);
 
 // Serve locally stored public PDFs, for example:
 // http://localhost:5000/pdfs/call-for-papers.pdf

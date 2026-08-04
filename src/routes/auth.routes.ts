@@ -14,13 +14,33 @@ import {
   verifyAdminOtp,
 } from "../controllers/auth.controller";
 import { protectAdmin } from "../middlewares/adminAuth.middleware";
+import {
+  loginRateLimiter,
+  otpRateLimiter,
+  passwordResetRateLimiter,
+} from "../middlewares/rateLimit.middleware";
 
 const router = Router();
 
-router.post("/login", loginAdmin);
-router.post("/verify-otp", verifyAdminOtp);
-router.post("/forgot-password", requestAdminPasswordReset);
-router.post("/reset-password", resetAdminPassword);
+router.post("/login", loginRateLimiter, loginAdmin);
+
+router.post(
+  "/verify-otp",
+  otpRateLimiter,
+  verifyAdminOtp
+);
+
+router.post(
+  "/forgot-password",
+  passwordResetRateLimiter,
+  requestAdminPasswordReset
+);
+
+router.post(
+  "/reset-password",
+  otpRateLimiter,
+  resetAdminPassword
+);
 router.post("/logout", protectAdmin, logoutAdmin);
 
 router.get("/me", protectAdmin, getAdminProfile);
