@@ -3,6 +3,21 @@ import streamifier from "streamifier";
 import cloudinary from "../config/cloudinary";
 import Media, { MediaType } from "../models/Media.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
+import { detectAllowedUploadMimeType } from "../utils/fileSignature";
+
+const allowedMediaFolders = new Set([
+  "general",
+  "homepage",
+  "homepage-carousel",
+  "issues",
+  "articles",
+  "editorial-board",
+  "call-for-papers",
+  "call-for-papers/images",
+  "authors",
+  "about",
+  "pages",
+]);
 
 const getMediaType = (mimeType: string): MediaType => {
   if (mimeType.startsWith("image/")) return "image";
@@ -55,11 +70,55 @@ export const uploadMedia = async (
       return;
     }
 
-    const folder = req.body.folder || "general";
-    const title = req.body.title || file.originalname;
+const detectedMimeType =
+  detectAllowedUploadMimeType(file.buffer);
 
-    const mediaType = getMediaType(file.mimetype);
-    const resourceType = mediaType === "image" ? "image" : "raw";
+if (!detectedMimeType) {
+  res.status(400).json({
+    success: false,
+    message:
+      "The uploaded file content is not a supported file type.",
+  });
+  return;
+}
+
+const reportedMimeType =
+  file.mimetype === "image/jpg"
+    ? "image/jpeg"
+    : file.mimetype.toLowerCase();
+
+if (reportedMimeType !== detectedMimeType) {
+  res.status(400).json({
+    success: false,
+    message:
+      "The uploaded file content does not match its reported file type.",
+  });
+  return;
+}
+
+const folder = String(
+  req.body.folder || "general"
+).trim();
+
+if (!allowedMediaFolders.has(folder)) {
+  res.status(400).json({
+    success: false,
+    message: "Invalid media folder.",
+  });
+  return;
+}
+
+const title =
+  String(req.body.title || file.originalname)
+    .trim()
+    .slice(0, 150) || "Untitled media";
+
+const mediaType = getMediaType(
+  detectedMimeType
+);
+
+const resourceType =
+  mediaType === "image" ? "image" : "raw";
 
     const uploaded = await uploadBufferToCloudinary(
       file.buffer,
@@ -72,7 +131,7 @@ export const uploadMedia = async (
       fileUrl: uploaded.secure_url,
       publicId: uploaded.public_id,
       fileType: mediaType,
-      mimeType: file.mimetype,
+      mimeType: detectedMimeType,
       size: file.size,
       folder,
       uploadedBy: req.admin?.id,

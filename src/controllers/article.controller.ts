@@ -8,6 +8,7 @@ import {
   syncAllArticleCitations,
   syncArticleCitationById,
 } from "../services/citationSync.service";
+import { detectAllowedUploadMimeType } from "../utils/fileSignature";
 
 const createSlug = (text: string) => {
   return text
@@ -222,7 +223,10 @@ export const uploadAdminArticlePdf = async (
       return;
     }
 
-    if (file.mimetype !== "application/pdf") {
+    if (
+  detectAllowedUploadMimeType(file.buffer) !==
+  "application/pdf"
+) {
       res.status(400).json({
         success: false,
         message: "Only PDF files are allowed for article upload.",

@@ -8,6 +8,7 @@ import { seedAdmin } from "./utils/seedAdmin";
 import { bootstrapCms } from "./utils/bootstrapCms";
 import { startCitationSyncScheduler } from "./services/citationScheduler.service";
 import helmet from "helmet";
+import multer from "multer";
 
 const app = express();
 app.disable("x-powered-by");
@@ -130,6 +131,31 @@ app.use(
     res: Response,
     _next: NextFunction
   ) => {
+    if (error instanceof multer.MulterError) {
+      const isFileTooLarge =
+        error.code === "LIMIT_FILE_SIZE";
+
+      res.status(isFileTooLarge ? 413 : 400).json({
+        success: false,
+        message: isFileTooLarge
+          ? "The uploaded file exceeds the 15 MB limit."
+          : "The upload request is invalid.",
+      });
+      return;
+    }
+
+    if (
+      error instanceof Error &&
+      error.message ===
+        "Only JPEG, PNG, WebP, GIF, PDF, DOC, and DOCX files are allowed."
+    ) {
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+      return;
+    }
+
     console.error("Server Error:", error);
 
     res.status(500).json({

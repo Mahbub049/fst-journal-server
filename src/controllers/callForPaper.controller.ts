@@ -5,6 +5,7 @@ import CallForPaper, {
   ICallForPaper,
 } from "../models/CallForPaper.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
+import { detectAllowedUploadMimeType } from "../utils/fileSignature";
 
 const DEFAULT_CALL_FOR_PAPER = {
   showInvitationLabel: true,
@@ -558,7 +559,10 @@ export const uploadAdminCallForPaperPdf = async (
       return;
     }
 
-    if (file.mimetype !== "application/pdf") {
+    if (
+  detectAllowedUploadMimeType(file.buffer) !==
+  "application/pdf"
+) {
       res.status(400).json({
         success: false,
         message: "Only PDF files are allowed for Call for Papers.",
