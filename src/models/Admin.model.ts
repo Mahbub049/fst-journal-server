@@ -38,12 +38,13 @@ const adminSchema = new Schema<IAdmin>(
       trim: true,
     },
 
-    password: {
-      type: String,
-      required: true,
-      minlength: 6,
-      select: false,
-    },
+password: {
+  type: String,
+  required: true,
+  minlength: 12,
+  maxlength: 128,
+  select: false,
+},
 
     role: {
       type: String,

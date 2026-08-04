@@ -17,9 +17,19 @@ export const env = {
 
   nodeEnv: process.env.NODE_ENV || "development",
 
-mongoUri: requiredEnv("MONGODB_URI"),
+  mongoUri: requiredEnv("MONGODB_URI"),
 
-jwtSecret: requiredEnv("JWT_SECRET"),
+  jwtSecret: requiredEnv("JWT_SECRET"),
+
+  otpPepper: requiredEnv("OTP_PEPPER"),
+
+  jwtIssuer:
+    process.env.JWT_ISSUER?.trim() ||
+    "bup-fst-journal",
+
+  jwtAudience:
+    process.env.JWT_AUDIENCE?.trim() ||
+    "bup-fst-admin",
 
   clientUrl: process.env.CLIENT_URL || "http://localhost:3000",
 

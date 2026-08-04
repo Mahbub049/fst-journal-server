@@ -22,7 +22,10 @@ const createToken = (
     },
     env.jwtSecret,
     {
-      expiresIn: "7d",
+      algorithm: "HS256",
+      issuer: env.jwtIssuer,
+      audience: env.jwtAudience,
+      expiresIn: "8h",
     }
   );
 };
@@ -42,10 +45,51 @@ const createOtp = () => {
 };
 
 const hashOtp = (otp: string) => {
-  return crypto.createHash("sha256").update(otp).digest("hex");
+  return crypto
+    .createHmac("sha256", env.otpPepper)
+    .update(otp)
+    .digest("hex");
+};
+
+const safelyCompareHex = (
+  firstValue: string,
+  secondValue: string
+): boolean => {
+  try {
+    const firstBuffer = Buffer.from(firstValue, "hex");
+    const secondBuffer = Buffer.from(secondValue, "hex");
+
+    if (
+      firstBuffer.length === 0 ||
+      firstBuffer.length !== secondBuffer.length
+    ) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(
+      firstBuffer,
+      secondBuffer
+    );
+  } catch {
+    return false;
+  }
 };
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
+const validatePassword = (
+  password: string
+): string | null => {
+  if (password.length < 12) {
+    return "Password must be at least 12 characters long.";
+  }
+
+  if (password.length > 128) {
+    return "Password cannot exceed 128 characters.";
+  }
+
+  return null;
+};
 
 const getCooldownWaitSeconds = (lastSentAt?: Date) => {
   if (!lastSentAt) {
@@ -252,7 +296,10 @@ export const verifyAdminOtp = async (
       return;
     }
 
-    const isOtpValid = hashOtp(cleanOtp) === admin.loginOtpHash;
+    const isOtpValid = safelyCompareHex(
+      hashOtp(cleanOtp),
+      admin.loginOtpHash
+    );
 
     if (!isOtpValid) {
       admin.loginOtpAttempts += 1;
@@ -300,6 +347,15 @@ export const requestAdminPasswordReset = async (
 ): Promise<void> => {
   try {
     const { email } = req.body;
+    const genericResponse = {
+      success: true,
+      requiresOtp: true,
+      message:
+        "If an eligible administrator account exists, a password-reset OTP has been sent.",
+      expiresInMinutes:
+        env.brevo.otpExpiryMinutes,
+    };
+
 
     if (!email) {
       res.status(400).json({
@@ -315,19 +371,15 @@ export const requestAdminPasswordReset = async (
       "+resetOtpHash +resetOtpExpiresAt +resetOtpAttempts +resetOtpLastSentAt"
     );
 
-    if (!admin) {
-      res.status(404).json({
-        success: false,
-        message: "No admin account was found with this email address.",
-      });
-      return;
-    }
+    if (!admin || !admin.isActive) {
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          250 + Math.floor(Math.random() * 250)
+        )
+      );
 
-    if (!admin.isActive) {
-      res.status(403).json({
-        success: false,
-        message: "This admin account is inactive.",
-      });
+      res.status(200).json(genericResponse);
       return;
     }
 
@@ -360,13 +412,7 @@ export const requestAdminPasswordReset = async (
       expiryMinutes: env.brevo.otpExpiryMinutes,
     });
 
-    res.status(200).json({
-      success: true,
-      requiresOtp: true,
-      message: "Password reset OTP has been sent to the admin email.",
-      email: admin.email,
-      expiresInMinutes: env.brevo.otpExpiryMinutes,
-    });
+    res.status(200).json(genericResponse);
   } catch (error) {
     console.error("Admin password reset OTP error:", error);
 
@@ -405,10 +451,13 @@ export const resetAdminPassword = async (
       return;
     }
 
-    if (cleanPassword.length < 6) {
+    const passwordError =
+      validatePassword(cleanPassword);
+
+    if (passwordError) {
       res.status(400).json({
         success: false,
-        message: "New password must be at least 6 characters long.",
+        message: passwordError,
       });
       return;
     }
@@ -460,7 +509,10 @@ export const resetAdminPassword = async (
       return;
     }
 
-    const isOtpValid = hashOtp(cleanOtp) === admin.resetOtpHash;
+    const isOtpValid = safelyCompareHex(
+      hashOtp(cleanOtp),
+      admin.resetOtpHash
+    );
 
     if (!isOtpValid) {
       admin.resetOtpAttempts += 1;
@@ -646,10 +698,13 @@ export const changeAdminPassword = async (
 
     const cleanNewPassword = String(newPassword);
 
-    if (cleanNewPassword.length < 6) {
+    const passwordError =
+      validatePassword(cleanNewPassword);
+
+    if (passwordError) {
       res.status(400).json({
         success: false,
-        message: "New password must be at least 6 characters long.",
+        message: passwordError,
       });
       return;
     }
@@ -759,10 +814,16 @@ export const createAdminAccount = async (
       return;
     }
 
-    if (cleanPassword.length < 6) {
+    const passwordError =
+      validatePassword(cleanPassword);
+
+    if (passwordError) {
       res.status(400).json({
         success: false,
-        message: "Temporary password must be at least 6 characters long.",
+        message: passwordError.replace(
+          "Password",
+          "Temporary password"
+        ),
       });
       return;
     }
@@ -884,10 +945,16 @@ export const updateAdminAccount = async (
     if (temporaryPassword !== undefined && String(temporaryPassword).trim()) {
       const cleanPassword = String(temporaryPassword);
 
-      if (cleanPassword.length < 6) {
+      const passwordError =
+        validatePassword(cleanPassword);
+
+      if (passwordError) {
         res.status(400).json({
           success: false,
-          message: "Temporary password must be at least 6 characters long.",
+          message: passwordError.replace(
+            "Password",
+            "Temporary password"
+          ),
         });
         return;
       }
