@@ -36,22 +36,10 @@ export const protectAdmin = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const cookieToken =
-      typeof req.cookies?.admin_session ===
-        "string"
+    const token =
+      typeof req.cookies?.admin_session === "string"
         ? req.cookies.admin_session
         : undefined;
-
-    const authHeader =
-      req.headers.authorization;
-
-    const bearerToken =
-      authHeader?.startsWith("Bearer ")
-        ? authHeader.slice(7).trim()
-        : undefined;
-
-    const token =
-      cookieToken || bearerToken;
 
     if (!token) {
       res.status(401).json({
@@ -141,7 +129,7 @@ export const protectAdmin = async (
   } catch (error) {
     res.status(401).json({
       success: false,
-      message: "Unauthorized. Invalid or expired token.",
+      message: "Unauthorized. Invalid or expired session.",
     });
   }
 };
