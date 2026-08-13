@@ -2,8 +2,8 @@ import express, { Request, Response, NextFunction } from "express";
 import path from "path";
 import cors from "cors";
 import routes from "./routes";
-import { env } from "./config/env";
 import { connectDB } from "./config/db";
+import { isAllowedClientOrigin } from "./config/origins";
 import { seedAdmin } from "./utils/seedAdmin";
 import { bootstrapCms } from "./utils/bootstrapCms";
 import { startCitationSyncScheduler } from "./services/citationScheduler.service";
@@ -41,28 +41,15 @@ const ensureDatabaseReady = () => {
   return databaseReadyPromise;
 };
 
-const allowedOrigins = Array.from(
-  new Set([
-    ...env.clientUrls,
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://103.121.194.11",
-    "http://ijfst.bup.edu.bd",
-    "https://ijfst.bup.edu.bd",
-    "http://jfst.bup.edu.bd",
-    "https://jfst.bup.edu.bd",
-  ].filter(Boolean))
-);
-
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || isAllowedClientOrigin(origin)) {
         callback(null, true);
         return;
       }
 
-      callback(new Error("Not allowed by CORS"));
+      callback(new Error("REQUEST_ORIGIN_NOT_ALLOWED"));
     },
     credentials: true,
   })
@@ -134,8 +121,7 @@ app.use(
     _next: NextFunction
   ) => {
     if (error instanceof multer.MulterError) {
-      const isFileTooLarge =
-        error.code === "LIMIT_FILE_SIZE";
+      const isFileTooLarge = error.code === "LIMIT_FILE_SIZE";
 
       res.status(isFileTooLarge ? 413 : 400).json({
         success: false,
@@ -154,6 +140,17 @@ app.use(
       res.status(400).json({
         success: false,
         message: error.message,
+      });
+      return;
+    }
+
+    if (
+      error instanceof Error &&
+      error.message === "REQUEST_ORIGIN_NOT_ALLOWED"
+    ) {
+      res.status(403).json({
+        success: false,
+        message: "Forbidden. Request origin is not allowed.",
       });
       return;
     }
