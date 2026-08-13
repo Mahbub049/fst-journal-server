@@ -3,6 +3,7 @@ import path from "path";
 import cors from "cors";
 import routes from "./routes";
 import { connectDB } from "./config/db";
+import { env } from "./config/env";
 import { isAllowedClientOrigin } from "./config/origins";
 import { seedAdmin } from "./utils/seedAdmin";
 import { bootstrapCms } from "./utils/bootstrapCms";
@@ -12,6 +13,11 @@ import multer from "multer";
 import cookieParser from "cookie-parser";
 
 const app = express();
+
+if (env.trustProxyHops > 0) {
+  app.set("trust proxy", env.trustProxyHops);
+}
+
 app.use(cookieParser());
 app.disable("x-powered-by");
 

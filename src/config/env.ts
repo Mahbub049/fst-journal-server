@@ -17,6 +17,11 @@ export const env = {
 
   nodeEnv: process.env.NODE_ENV || "development",
 
+  trustProxyHops: Math.max(
+    0,
+    Number.parseInt(process.env.TRUST_PROXY_HOPS || "0", 10) || 0
+  ),
+
   mongoUri: requiredEnv("MONGODB_URI"),
 
   jwtSecret: requiredEnv("JWT_SECRET"),
