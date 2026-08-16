@@ -777,7 +777,25 @@ export const changeAdminPassword = async (
     admin.resetOtpExpiresAt = undefined;
     admin.resetOtpAttempts = 0;
 
+    const rotatedSessionSecret = createSessionSecret();
+
+    admin.activeSessionHash = hashSessionSecret(rotatedSessionSecret);
+    admin.activeSessionExpiresAt = getAdminSessionExpiry();
+    admin.lastActiveAt = new Date();
+
     await admin.save();
+
+    const rotatedToken = createToken(
+      String(admin._id),
+      admin.role,
+      rotatedSessionSecret
+    );
+
+    res.cookie(
+      ADMIN_SESSION_COOKIE,
+      rotatedToken,
+      getAdminSessionCookieOptions()
+    );
 
     res.status(200).json({
       success: true,
