@@ -91,7 +91,9 @@ const sanitizeUrl = (value: unknown) => {
   const url = String(value || "").trim();
   if (!url) return "";
 
-  if (url.startsWith("/") || url.startsWith("#")) return url;
+  if ((url.startsWith("/") && !/^[/\\]{2}/.test(url)) || url.startsWith("#")) {
+    return url;
+  }
   if (/^(https?:|mailto:|tel:)/i.test(url)) return url;
 
   return "";
@@ -225,6 +227,77 @@ const sortNestedBlocks = (blocks: any[] = []): any[] =>
       children: sortNestedBlocks(block.children || []),
     }));
 
+const sanitizeStoredContentBlocks = (
+  blocks: unknown,
+  depth = 0
+): any[] => {
+  if (!Array.isArray(blocks) || depth > 6) return [];
+
+  return blocks.map((block: any) => {
+    const rawBlock =
+      typeof block?.toObject === "function"
+        ? block.toObject()
+        : block || {};
+
+    return {
+      ...rawBlock,
+      type: allowedBlockTypes.includes(rawBlock.type)
+        ? rawBlock.type
+        : "paragraph",
+      content: sanitizeRichHtml(rawBlock.content),
+      items: normalizeStringArray(rawBlock.items).map((item) =>
+        sanitizeRichHtml(item)
+      ),
+      imageUrl: sanitizeUrl(rawBlock.imageUrl),
+      fileUrl: sanitizeUrl(rawBlock.fileUrl),
+      buttonUrl: sanitizeUrl(rawBlock.buttonUrl),
+      buttonIcon: normalizeButtonIcon(rawBlock.buttonIcon),
+      buttonVariant: normalizeButtonVariant(rawBlock.buttonVariant),
+      style: normalizeBlockStyle(rawBlock.style),
+      children: sanitizeStoredContentBlocks(rawBlock.children, depth + 1),
+    };
+  });
+};
+
+const sanitizeStoredPageButtons = (buttons: unknown): any[] => {
+  if (!Array.isArray(buttons)) return [];
+
+  return buttons.map((button: any) => {
+    const rawButton =
+      typeof button?.toObject === "function"
+        ? button.toObject()
+        : button || {};
+
+    return {
+      ...rawButton,
+      url: sanitizeUrl(rawButton.url),
+      icon: normalizeButtonIcon(rawButton.icon),
+      variant: normalizeButtonVariant(rawButton.variant),
+    };
+  });
+};
+
+const sanitizePageForResponse = (page: any) => {
+  const rawPage =
+    typeof page?.toObject === "function"
+      ? page.toObject()
+      : page || {};
+
+  return {
+    ...rawPage,
+    bannerImage: sanitizeUrl(rawPage.bannerImage),
+    buttonUrl: sanitizeUrl(rawPage.buttonUrl),
+    buttonIcon: normalizeButtonIcon(rawPage.buttonIcon),
+    buttonVariant: normalizeButtonVariant(rawPage.buttonVariant),
+    helpCardContent: sanitizeRichHtml(rawPage.helpCardContent),
+    helpCardButtonLayout: normalizeButtonLayout(rawPage.helpCardButtonLayout),
+    helpCardButtons: sanitizeStoredPageButtons(rawPage.helpCardButtons),
+    contentBlocks: sortNestedBlocks(
+      sanitizeStoredContentBlocks(rawPage.contentBlocks)
+    ),
+  };
+};
+
 const normalizeGroupOrders = async (group: PageGroup) => {
   const pages = await Page.find({ group })
     .sort({ order: 1, createdAt: 1, title: 1 })
@@ -254,7 +327,10 @@ export const getPublicPages = async (req: Request, res: Response): Promise<void>
       .select("-__v");
 
     res.set("Cache-Control", "no-store");
-    res.status(200).json({ success: true, pages });
+    res.status(200).json({
+      success: true,
+      pages: pages.map((page) => sanitizePageForResponse(page)),
+    });
   } catch {
     res.status(500).json({ success: false, message: "Failed to fetch pages." });
   }
@@ -299,11 +375,11 @@ const page = await Page.findOne({
       return;
     }
 
-    const pageObject = page.toObject();
+    const pageObject = sanitizePageForResponse(page);
     res.set("Cache-Control", "no-store");
     res.status(200).json({
       success: true,
-      page: { ...pageObject, contentBlocks: sortNestedBlocks(pageObject.contentBlocks) },
+      page: pageObject,
     });
   } catch {
     res.status(500).json({ success: false, message: "Failed to fetch page." });
@@ -320,7 +396,10 @@ export const getAdminPages = async (
     if (group) filter.group = group;
 
     const pages = await Page.find(filter).sort({ group: 1, order: 1, title: 1 });
-    res.status(200).json({ success: true, pages });
+    res.status(200).json({
+      success: true,
+      pages: pages.map((page) => sanitizePageForResponse(page)),
+    });
   } catch {
     res.status(500).json({ success: false, message: "Failed to fetch admin pages." });
   }
@@ -336,7 +415,10 @@ export const getAdminPageById = async (
       res.status(404).json({ success: false, message: "Page not found." });
       return;
     }
-    res.status(200).json({ success: true, page });
+    res.status(200).json({
+      success: true,
+      page: sanitizePageForResponse(page),
+    });
   } catch {
     res.status(500).json({ success: false, message: "Failed to fetch page." });
   }
@@ -398,7 +480,11 @@ export const createAdminPage = async (
       isPublished: req.body.isPublished ?? true,
     });
 
-    res.status(201).json({ success: true, message: "Page created successfully.", page });
+    res.status(201).json({
+      success: true,
+      message: "Page created successfully.",
+      page: sanitizePageForResponse(page),
+    });
   } catch (error) {
     console.error("Create page error:", error);
     res.status(500).json({ success: false, message: "Failed to create page." });
@@ -514,7 +600,11 @@ export const updateAdminPage = async (
       await normalizeGroupOrders(group);
     }
 
-    res.status(200).json({ success: true, message: "Page updated successfully.", page });
+    res.status(200).json({
+      success: true,
+      message: "Page updated successfully.",
+      page: sanitizePageForResponse(page),
+    });
   } catch (error) {
     console.error("Update page error:", error);
     res.status(500).json({ success: false, message: "Failed to update page." });

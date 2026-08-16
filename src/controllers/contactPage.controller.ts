@@ -77,6 +77,18 @@ contentHtml: sanitizeRichHtml(
   isPublished: body.isPublished ?? true,
 });
 
+const sanitizeContactPageForResponse = (contactPage: any) => {
+  const rawContactPage =
+    typeof contactPage?.toObject === "function"
+      ? contactPage.toObject()
+      : contactPage || {};
+
+  return {
+    ...rawContactPage,
+    contentHtml: sanitizeRichHtml(rawContactPage.contentHtml),
+  };
+};
+
 const getOrCreateContactPage = async () => {
   let contactPage = await ContactPage.findOne().sort({ updatedAt: -1 });
   if (!contactPage) contactPage = await ContactPage.create(DEFAULT_CONTACT_PAGE);
@@ -95,7 +107,10 @@ export const getPublicContactPage = async (
     }
 
     res.set("Cache-Control", "no-store");
-    res.status(200).json({ success: true, data: contactPage });
+    res.status(200).json({
+      success: true,
+      data: sanitizeContactPageForResponse(contactPage),
+    });
   } catch (error) {
     console.error("getPublicContactPage error:", error);
     res.status(500).json({ success: false, message: "Failed to fetch contact page." });
@@ -108,7 +123,10 @@ export const getAdminContactPage = async (
 ): Promise<void> => {
   try {
     const contactPage = await getOrCreateContactPage();
-    res.status(200).json({ success: true, data: contactPage });
+    res.status(200).json({
+      success: true,
+      data: sanitizeContactPageForResponse(contactPage),
+    });
   } catch (error) {
     console.error("getAdminContactPage error:", error);
     res.status(500).json({ success: false, message: "Failed to fetch contact page." });
@@ -132,7 +150,7 @@ export const updateAdminContactPage = async (
     res.status(200).json({
       success: true,
       message: "Contact page updated successfully.",
-      data: contactPage,
+      data: sanitizeContactPageForResponse(contactPage),
     });
   } catch (error) {
     console.error("updateAdminContactPage error:", error);
