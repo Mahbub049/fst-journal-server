@@ -3,3 +3,7 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Runtime article uploads and temporary files are stored on the server, not in Git.
+public/pdfs/articles/**
+.tmp/

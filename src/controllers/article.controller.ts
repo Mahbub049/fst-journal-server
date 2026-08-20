@@ -1,6 +1,4 @@
 import { Response } from "express";
-import fs from "fs/promises";
-import path from "path";
 import Article from "../models/Article.model";
 import Issue from "../models/Issue.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
@@ -9,6 +7,24 @@ import {
   syncArticleCitationById,
 } from "../services/citationSync.service";
 import { detectAllowedUploadMimeType } from "../utils/fileSignature";
+import { extractArticlePdfMetadata } from "../utils/articlePdfMetadata";
+import { buildIssueArticleFolderName } from "../utils/issueStorage";
+import {
+  ArticlePdfCommit,
+  ArticlePdfMove,
+  cleanupUnreferencedLocalArticlePdfs,
+  commitTemporaryArticlePdf,
+  createTemporaryArticlePdf,
+  deleteLocalArticlePdfByUrl,
+  discardTemporaryArticlePdf,
+  finalizeArticlePdfCommit,
+  finalizeArticlePdfMove,
+  isTemporaryArticlePdfUrl,
+  moveLocalArticlePdfToIssue,
+  resolveLocalArticlePdfPath,
+  rollbackArticlePdfCommit,
+  rollbackArticlePdfMove,
+} from "../utils/articleStorage";
 
 const createSlug = (text: string) => {
   return text
@@ -94,33 +110,24 @@ const normalizeArticlePayload = (body: Record<string, any>) => {
   };
 };
 
-const formatTwoDigitValue = (value: string) => {
-  const trimmed = value.trim();
-  const numericMatch = trimmed.match(/\d+/);
+const cleanupArticlePdfStorage = async () => {
+  try {
+    const [articleRefs, activeIssues] = await Promise.all([
+      Article.find({}).select("pdfUrl"),
+      Issue.find({}).select("volume issueNumber"),
+    ]);
 
-  if (!numericMatch) {
-    return createSlug(trimmed) || "00";
+    await cleanupUnreferencedLocalArticlePdfs({
+      referencedPdfUrls: articleRefs
+        .map((article) => String(article.pdfUrl || "").trim())
+        .filter(Boolean),
+      activeIssueFolders: activeIssues.map((issue) =>
+        buildIssueArticleFolderName(issue)
+      ),
+    });
+  } catch (error) {
+    console.warn("Article PDF storage cleanup failed:", error);
   }
-
-  return numericMatch[0].padStart(2, "0");
-};
-
-const buildIssuePdfFolderSegments = (issue: {
-  volume?: string;
-  issueNumber?: string;
-}) => {
-  const volumeSegment = `volume-${formatTwoDigitValue(String(issue.volume || ""))}`;
-  const issueSegment = `issue-${formatTwoDigitValue(String(issue.issueNumber || ""))}`;
-
-  return { volumeSegment, issueSegment };
-};
-
-const buildLocalPdfFileName = (title: string, originalName: string) => {
-  const titleSlug =
-    createSlug(title) || createSlug(originalName.replace(/\.pdf$/i, ""));
-  const safeName = titleSlug || "article-pdf";
-
-  return `${Date.now()}-${safeName}.pdf`;
 };
 
 export const getAdminArticles = async (
@@ -128,6 +135,10 @@ export const getAdminArticles = async (
   res: Response
 ): Promise<void> => {
   try {
+    // Opening the admin article list also removes old test/orphan PDFs that
+    // are no longer referenced by any saved article.
+    await cleanupArticlePdfStorage();
+
     const { search, issueId, status, publication } = req.query;
 
     const filter: Record<string, any> = {};
@@ -223,10 +234,7 @@ export const uploadAdminArticlePdf = async (
       return;
     }
 
-    if (
-  detectAllowedUploadMimeType(file.buffer) !==
-  "application/pdf"
-) {
+    if (detectAllowedUploadMimeType(file.buffer) !== "application/pdf") {
       res.status(400).json({
         success: false,
         message: "Only PDF files are allowed for article upload.",
@@ -256,42 +264,76 @@ export const uploadAdminArticlePdf = async (
       return;
     }
 
-    const title = String(req.body.title || file.originalname || "article-pdf");
-    const slug = String(req.body.slug || "");
-    const filename = buildLocalPdfFileName(slug || title, file.originalname);
-    const { volumeSegment, issueSegment } = buildIssuePdfFolderSegments(issue);
+    const previousTempUrl = String(req.body.previousTempUrl || "").trim();
 
-    const pdfDirectory = path.join(
-      process.cwd(),
-      "public",
-      "pdfs",
-      "articles",
-      volumeSegment,
-      issueSegment
-    );
-    const pdfPath = path.join(pdfDirectory, filename);
+    let extractedMetadata = {
+      title: "",
+      authors: [] as string[],
+      abstract: "",
+      keywords: [] as string[],
+      pages: "",
+      doi: "",
+      pageCount: 0,
+      detectedFields: [] as string[],
+      warning:
+        "PDF selected successfully, but metadata could not be detected automatically. Please fill the article fields manually.",
+    };
 
-    await fs.mkdir(pdfDirectory, { recursive: true });
-    await fs.writeFile(pdfPath, file.buffer);
+    try {
+      extractedMetadata = await extractArticlePdfMetadata(file.buffer);
+    } catch (metadataError) {
+      console.warn("Article PDF metadata extraction failed:", metadataError);
+    }
 
-    // Store a relative URL in the database.
-    // Example: /pdfs/articles/volume-03/issue-01/article.pdf
-    // This keeps links portable across localhost, VM IP, and final domain.
-    const fileUrl = `/pdfs/articles/${volumeSegment}/${issueSegment}/${filename}`;
+    const temporaryPdf = await createTemporaryArticlePdf(file.buffer);
+
+    if (
+      isTemporaryArticlePdfUrl(previousTempUrl) &&
+      previousTempUrl !== temporaryPdf.tempUrl
+    ) {
+      await discardTemporaryArticlePdf(previousTempUrl);
+    }
 
     res.status(201).json({
       success: true,
-      message: "Article PDF uploaded locally successfully.",
-      fileUrl,
-      filename,
-      folder: `public/pdfs/articles/${volumeSegment}/${issueSegment}`,
+      message:
+        "PDF analyzed successfully. It will be saved to the issue folder only after the article is created or updated.",
+      fileUrl: temporaryPdf.tempUrl,
+      filename: file.originalname,
+      temporary: true,
+      targetFolder: `public/pdfs/articles/${buildIssueArticleFolderName(issue)}`,
+      metadata: extractedMetadata,
     });
   } catch (error) {
     console.error("uploadAdminArticlePdf error:", error);
 
     res.status(500).json({
       success: false,
-      message: "Failed to upload article PDF.",
+      message: "Failed to process article PDF.",
+    });
+  }
+};
+
+export const discardAdminArticleTempPdf = async (
+  req: AdminAuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const tempUrl = String(req.body.tempUrl || "").trim();
+
+    if (isTemporaryArticlePdfUrl(tempUrl)) {
+      await discardTemporaryArticlePdf(tempUrl);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Temporary PDF cleared.",
+    });
+  } catch (error) {
+    console.error("discardAdminArticleTempPdf error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to clear temporary PDF.",
     });
   }
 };
@@ -300,14 +342,13 @@ export const createAdminArticle = async (
   req: AdminAuthRequest,
   res: Response
 ): Promise<void> => {
+  let pdfCommit: ArticlePdfCommit | null = null;
+
   try {
     const payload = normalizeArticlePayload(req.body);
 
     if (!payload.issueId) {
-      res.status(400).json({
-        success: false,
-        message: "Issue is required.",
-      });
+      res.status(400).json({ success: false, message: "Issue is required." });
       return;
     }
 
@@ -340,7 +381,8 @@ export const createAdminArticle = async (
     if (!payload.pdfUrl.trim()) {
       res.status(400).json({
         success: false,
-        message: "PDF URL is required. Upload a local PDF or paste an external PDF link.",
+        message:
+          "PDF is required. Upload a local PDF or paste an external PDF link.",
       });
       return;
     }
@@ -353,9 +395,24 @@ export const createAdminArticle = async (
     if (duplicateArticle) {
       res.status(409).json({
         success: false,
-        message: "Another article with this title/slug already exists in this issue.",
+        message:
+          "Another article with this title/slug already exists in this issue.",
       });
       return;
+    }
+
+    const article = new Article({
+      ...payload,
+      order: 0,
+    });
+
+    if (isTemporaryArticlePdfUrl(payload.pdfUrl)) {
+      pdfCommit = await commitTemporaryArticlePdf({
+        tempUrl: payload.pdfUrl,
+        issue,
+        articleId: String(article._id),
+      });
+      article.pdfUrl = pdfCommit.publicUrl;
     }
 
     await Article.updateMany(
@@ -363,22 +420,41 @@ export const createAdminArticle = async (
       { $inc: { order: 1 } }
     );
 
-    const article = await Article.create({
-      ...payload,
-      order: 0,
-    });
+    try {
+      await article.save();
+    } catch (error) {
+      await Article.updateMany(
+        { issueId: payload.issueId },
+        { $inc: { order: -1 } }
+      );
+      throw error;
+    }
+
+    if (pdfCommit) {
+      await finalizeArticlePdfCommit(pdfCommit);
+    }
+
+    await cleanupArticlePdfStorage();
 
     res.status(201).json({
       success: true,
       message: "Article created successfully.",
       data: article,
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (pdfCommit) {
+      try {
+        await rollbackArticlePdfCommit(pdfCommit);
+      } catch (rollbackError) {
+        console.error("Failed to roll back article PDF:", rollbackError);
+      }
+    }
+
     console.error("createAdminArticle error:", error);
 
     res.status(500).json({
       success: false,
-      message: "Failed to create article.",
+      message: error?.message || "Failed to create article.",
     });
   }
 };
@@ -387,6 +463,13 @@ export const updateAdminArticle = async (
   req: AdminAuthRequest,
   res: Response
 ): Promise<void> => {
+  let pdfCommit: ArticlePdfCommit | null = null;
+  let pdfMove: ArticlePdfMove | null = null;
+  let previousPdfUrl = "";
+  let articleSaved = false;
+  let shiftedNextIssueOrders = false;
+  let nextIssueIdForRollback = "";
+
   try {
     const article = await Article.findById(req.params.id);
 
@@ -398,13 +481,11 @@ export const updateAdminArticle = async (
       return;
     }
 
+    previousPdfUrl = String(article.pdfUrl || "").trim();
     const payload = normalizeArticlePayload(req.body);
 
     if (!payload.issueId) {
-      res.status(400).json({
-        success: false,
-        message: "Issue is required.",
-      });
+      res.status(400).json({ success: false, message: "Issue is required." });
       return;
     }
 
@@ -437,7 +518,8 @@ export const updateAdminArticle = async (
     if (!payload.pdfUrl.trim()) {
       res.status(400).json({
         success: false,
-        message: "PDF URL is required. Upload a local PDF or paste an external PDF link.",
+        message:
+          "PDF is required. Upload a local PDF or paste an external PDF link.",
       });
       return;
     }
@@ -451,13 +533,44 @@ export const updateAdminArticle = async (
     if (duplicateArticle) {
       res.status(409).json({
         success: false,
-        message: "Another article with this title/slug already exists in this issue.",
+        message:
+          "Another article with this title/slug already exists in this issue.",
       });
       return;
     }
 
     const previousIssueId = String(article.issueId);
     const nextIssueId = String(payload.issueId);
+
+    if (isTemporaryArticlePdfUrl(payload.pdfUrl)) {
+      pdfCommit = await commitTemporaryArticlePdf({
+        tempUrl: payload.pdfUrl,
+        issue,
+        articleId: String(article._id),
+      });
+      payload.pdfUrl = pdfCommit.publicUrl;
+    } else if (previousIssueId !== nextIssueId) {
+      const previousLocalPath = resolveLocalArticlePdfPath(previousPdfUrl);
+      const requestedLocalPath = resolveLocalArticlePdfPath(payload.pdfUrl);
+
+      // If the issue changes but the PDF itself was not replaced, move the
+      // existing local file into the new issue's canonical folder as well.
+      if (
+        previousLocalPath &&
+        requestedLocalPath &&
+        previousLocalPath === requestedLocalPath
+      ) {
+        pdfMove = await moveLocalArticlePdfToIssue({
+          pdfUrl: previousPdfUrl,
+          issue,
+          articleId: String(article._id),
+        });
+
+        if (pdfMove) {
+          payload.pdfUrl = pdfMove.publicUrl;
+        }
+      }
+    }
 
     if (previousIssueId !== nextIssueId) {
       await Article.updateMany(
@@ -468,26 +581,92 @@ export const updateAdminArticle = async (
         { $inc: { order: 1 } }
       );
 
+      shiftedNextIssueOrders = true;
+      nextIssueIdForRollback = nextIssueId;
       payload.order = 0;
     }
 
     article.set(payload);
     await article.save();
+    articleSaved = true;
+
+    // Once the article is saved, file cleanup is best-effort. A cleanup error
+    // must not roll the file back while the database points to the new path.
+    if (pdfCommit) {
+      try {
+        await finalizeArticlePdfCommit(pdfCommit);
+      } catch (cleanupError) {
+        console.warn("Article PDF backup cleanup failed:", cleanupError);
+      }
+    }
+
+    if (pdfMove) {
+      try {
+        await finalizeArticlePdfMove(pdfMove);
+      } catch (cleanupError) {
+        console.warn("Moved article PDF backup cleanup failed:", cleanupError);
+      }
+    }
+
+    const nextPdfUrl = String(article.pdfUrl || "").trim();
+    if (
+      previousPdfUrl &&
+      previousPdfUrl !== nextPdfUrl &&
+      !pdfMove
+    ) {
+      try {
+        await deleteLocalArticlePdfByUrl(previousPdfUrl);
+      } catch (cleanupError) {
+        console.warn("Previous article PDF cleanup failed:", cleanupError);
+      }
+    }
+
+    await cleanupArticlePdfStorage();
 
     res.status(200).json({
       success: true,
       message: "Article updated successfully.",
       data: article,
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (!articleSaved) {
+      if (pdfCommit) {
+        try {
+          await rollbackArticlePdfCommit(pdfCommit);
+        } catch (rollbackError) {
+          console.error("Failed to roll back article PDF:", rollbackError);
+        }
+      }
+
+      if (pdfMove) {
+        try {
+          await rollbackArticlePdfMove(pdfMove);
+        } catch (rollbackError) {
+          console.error("Failed to roll back moved article PDF:", rollbackError);
+        }
+      }
+
+      if (shiftedNextIssueOrders && nextIssueIdForRollback) {
+        try {
+          await Article.updateMany(
+            { issueId: nextIssueIdForRollback },
+            { $inc: { order: -1 } }
+          );
+        } catch (rollbackError) {
+          console.error("Failed to restore article ordering:", rollbackError);
+        }
+      }
+    }
+
     console.error("updateAdminArticle error:", error);
 
     res.status(500).json({
       success: false,
-      message: "Failed to update article.",
+      message: error?.message || "Failed to update article.",
     });
   }
 };
+
 
 export const reorderAdminArticles = async (
   req: AdminAuthRequest,
@@ -638,11 +817,23 @@ export const deleteAdminArticle = async (
       return;
     }
 
+    const pdfUrl = String(article.pdfUrl || "").trim();
+
     await article.deleteOne();
+
+    if (pdfUrl) {
+      try {
+        await deleteLocalArticlePdfByUrl(pdfUrl);
+      } catch (fileError) {
+        console.warn("Article deleted but local PDF cleanup failed:", fileError);
+      }
+    }
+
+    await cleanupArticlePdfStorage();
 
     res.status(200).json({
       success: true,
-      message: "Article deleted successfully.",
+      message: "Article and its local PDF were deleted successfully.",
     });
   } catch (error) {
     console.error("deleteAdminArticle error:", error);

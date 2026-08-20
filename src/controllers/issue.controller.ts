@@ -4,6 +4,19 @@ import path from "path";
 import Issue from "../models/Issue.model";
 import Article from "../models/Article.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
+import {
+  buildIssueArticleFolderName,
+  ensureIssueArticlePdfDirectory,
+  formatTwoDigitIssueValue,
+  getIssueArticlePdfPublicFolder,
+  removeIssueArticlePdfDirectory,
+} from "../utils/issueStorage";
+import {
+  ArticlePdfMove,
+  finalizeArticlePdfMove,
+  moveLocalArticlePdfToIssue,
+  rollbackArticlePdfMove,
+} from "../utils/articleStorage";
 
 const createSlug = (text: string) => {
   return text
@@ -14,24 +27,13 @@ const createSlug = (text: string) => {
     .replace(/^-+|-+$/g, "");
 };
 
-const formatTwoDigitValue = (value: string) => {
-  const trimmed = value.trim();
-  const numericMatch = trimmed.match(/\d+/);
-
-  if (!numericMatch) {
-    return createSlug(trimmed);
-  }
-
-  return numericMatch[0].padStart(2, "0");
-};
-
 const createIssueSlug = (body: Record<string, any>) => {
   const titleSlug = createSlug(body.title || "");
   const volumeSlug = String(body.volume || "").trim()
-    ? `volume-${formatTwoDigitValue(String(body.volume || ""))}`
+    ? `volume-${formatTwoDigitIssueValue(String(body.volume || ""))}`
     : "";
   const issueSlug = String(body.issueNumber || "").trim()
-    ? `issue-${formatTwoDigitValue(String(body.issueNumber || ""))}`
+    ? `issue-${formatTwoDigitIssueValue(String(body.issueNumber || ""))}`
     : "";
   const dateSlug = createSlug(body.publishDateLabel || "");
 
@@ -63,19 +65,38 @@ const getDownloadFileName = (articleTitle: string, pdfUrl: string) => {
 };
 
 const normalizeIssuePayload = (body: Record<string, any>) => {
+  const volume = String(body.volume || "").trim();
+  const issueNumber = String(body.issueNumber || "").trim();
+
   return {
-    title: body.title || "",
+    title: String(body.title || "").trim(),
     slug: createIssueSlug(body),
-    category: body.category || "Research Article",
-    issn: body.issn || "",
-    volume: body.volume || "",
-    issueNumber: body.issueNumber || "",
-    publishDateLabel: body.publishDateLabel || "",
-    coverImage: body.coverImage || "",
-    pdfUrl: body.pdfUrl || "",
+    category: "Science & Technology",
+    issn: String(body.issn || "").trim(),
+    volume: volume ? formatTwoDigitIssueValue(volume) : "",
+    issueNumber: issueNumber ? formatTwoDigitIssueValue(issueNumber) : "",
+    publishDateLabel: String(body.publishDateLabel || "").trim(),
+    coverImage: String(body.coverImage || "").trim(),
+    pdfUrl: String(body.pdfUrl || "").trim(),
     isRecent: body.isRecent ?? true,
     isPublished: body.isPublished ?? true,
   };
+};
+
+const findIssueUsingArticleFolder = async (
+  issueIdentity: { volume?: string; issueNumber?: string },
+  excludeIssueId = ""
+) => {
+  const targetFolderName = buildIssueArticleFolderName(issueIdentity);
+  const issues = await Issue.find({}).select("_id volume issueNumber").lean();
+
+  return (
+    issues.find(
+      (issue) =>
+        String(issue._id) !== excludeIssueId &&
+        buildIssueArticleFolderName(issue) === targetFolderName
+    ) || null
+  );
 };
 
 const normalizeIssueOrders = async () => {
@@ -539,6 +560,10 @@ export const createAdminIssue = async (
   req: AdminAuthRequest,
   res: Response
 ): Promise<void> => {
+  let preparedIssueIdentity: { volume?: string; issueNumber?: string } | null = null;
+  let shiftedIssueOrders = false;
+  let issueCreated = false;
+
   try {
     const payload = normalizeIssuePayload(req.body);
 
@@ -600,19 +625,55 @@ export const createAdminIssue = async (
       return;
     }
 
+    const existingIssueFolder = await findIssueUsingArticleFolder(payload);
+
+    if (existingIssueFolder) {
+      res.status(409).json({
+        success: false,
+        message:
+          "Another issue already uses this volume and issue number. Each issue must have a unique article PDF folder.",
+      });
+      return;
+    }
+
+    await ensureIssueArticlePdfDirectory(payload);
+    preparedIssueIdentity = {
+      volume: payload.volume,
+      issueNumber: payload.issueNumber,
+    };
+
     await Issue.updateMany({}, { $inc: { order: 1 } });
+    shiftedIssueOrders = true;
 
     const issue = await Issue.create({
       ...payload,
       order: 0,
     });
+    issueCreated = true;
 
     res.status(201).json({
       success: true,
       message: "Issue created successfully.",
       data: issue,
+      articlePdfFolder: getIssueArticlePdfPublicFolder(issue),
     });
   } catch (error) {
+    if (shiftedIssueOrders && !issueCreated) {
+      try {
+        await normalizeIssueOrders();
+      } catch (rollbackError) {
+        console.error("Failed to restore issue ordering:", rollbackError);
+      }
+    }
+
+    if (preparedIssueIdentity && !issueCreated) {
+      try {
+        await removeIssueArticlePdfDirectory(preparedIssueIdentity);
+      } catch (rollbackError) {
+        console.error("Failed to remove unused issue PDF folder:", rollbackError);
+      }
+    }
+
     console.error("createAdminIssue error:", error);
 
     res.status(500).json({
@@ -626,6 +687,17 @@ export const updateAdminIssue = async (
   req: AdminAuthRequest,
   res: Response
 ): Promise<void> => {
+  const pdfMoves: Array<{
+    articleId: string;
+    previousPdfUrl: string;
+    move: ArticlePdfMove;
+  }> = [];
+  let issueSaved = false;
+  let articleUrlsMayHaveChanged = false;
+  let previousIssueState: Record<string, any> | null = null;
+  let preparedNextIssueIdentity: { volume?: string; issueNumber?: string } | null = null;
+  let storageIdentityChangedForRollback = false;
+
   try {
     const issue = await Issue.findById(req.params.id);
 
@@ -700,20 +772,170 @@ export const updateAdminIssue = async (
       return;
     }
 
+    const duplicateIssueFolder = await findIssueUsingArticleFolder(
+      payload,
+      String(issue._id)
+    );
+
+    if (duplicateIssueFolder) {
+      res.status(409).json({
+        success: false,
+        message:
+          "Another issue already uses this volume and issue number. Each issue must have a unique article PDF folder.",
+      });
+      return;
+    }
+
+    const previousIssueIdentity = {
+      volume: String(issue.volume || ""),
+      issueNumber: String(issue.issueNumber || ""),
+    };
+    const previousFolderName = buildIssueArticleFolderName(previousIssueIdentity);
+    const nextFolderName = buildIssueArticleFolderName(payload);
+    const storageIdentityChanged = previousFolderName !== nextFolderName;
+    storageIdentityChangedForRollback = storageIdentityChanged;
+    preparedNextIssueIdentity = {
+      volume: payload.volume,
+      issueNumber: payload.issueNumber,
+    };
+
+    previousIssueState = {
+      title: issue.title,
+      slug: issue.slug,
+      category: issue.category,
+      issn: issue.issn,
+      volume: issue.volume,
+      issueNumber: issue.issueNumber,
+      publishDateLabel: issue.publishDateLabel,
+      coverImage: issue.coverImage,
+      pdfUrl: issue.pdfUrl || "",
+      isRecent: issue.isRecent,
+      isPublished: issue.isPublished,
+    };
+
+    await ensureIssueArticlePdfDirectory(payload);
+
+    if (storageIdentityChanged) {
+      const articles = await Article.find({ issueId: issue._id }).select(
+        "_id pdfUrl"
+      );
+
+      for (const article of articles) {
+        const previousPdfUrl = String(article.pdfUrl || "").trim();
+        if (!previousPdfUrl) continue;
+
+        const move = await moveLocalArticlePdfToIssue({
+          pdfUrl: previousPdfUrl,
+          issue: payload,
+          articleId: String(article._id),
+        });
+
+        // External PDF URLs are intentionally not moved.
+        if (!move) continue;
+
+        pdfMoves.push({
+          articleId: String(article._id),
+          previousPdfUrl,
+          move,
+        });
+      }
+    }
+
     issue.set(payload);
     await issue.save();
+    issueSaved = true;
+
+    if (pdfMoves.length > 0) {
+      // Set this before bulkWrite so a partially completed ordered bulk write
+      // is also restored by the catch block.
+      articleUrlsMayHaveChanged = true;
+
+      await Article.bulkWrite(
+        pdfMoves.map(({ articleId, move }) => ({
+          updateOne: {
+            filter: { _id: articleId, issueId: issue._id },
+            update: { $set: { pdfUrl: move.publicUrl } },
+          },
+        }))
+      );
+    }
+
+    // The database now points to the new storage identity. Cleanup below is
+    // best-effort and must not undo a successful issue/article update.
+    for (const { move } of pdfMoves) {
+      try {
+        await finalizeArticlePdfMove(move);
+      } catch (cleanupError) {
+        console.warn("Issue PDF move backup cleanup failed:", cleanupError);
+      }
+    }
+
+    if (storageIdentityChanged) {
+      try {
+        await removeIssueArticlePdfDirectory(previousIssueIdentity);
+      } catch (cleanupError) {
+        console.warn("Old issue PDF folder cleanup failed:", cleanupError);
+      }
+    }
 
     res.status(200).json({
       success: true,
-      message: "Issue updated successfully.",
+      message: storageIdentityChanged
+        ? "Issue updated and article PDFs moved to the new issue folder successfully."
+        : "Issue updated successfully.",
       data: issue,
+      articlePdfFolder: getIssueArticlePdfPublicFolder(issue),
     });
-  } catch (error) {
+  } catch (error: any) {
+    // Restore article URLs in case the bulk update completed only partially.
+    if (articleUrlsMayHaveChanged && pdfMoves.length > 0) {
+      try {
+        await Article.bulkWrite(
+          pdfMoves.map(({ articleId, previousPdfUrl }) => ({
+            updateOne: {
+              filter: { _id: articleId },
+              update: { $set: { pdfUrl: previousPdfUrl } },
+            },
+          }))
+        );
+      } catch (rollbackError) {
+        console.error("Failed to restore article PDF URLs:", rollbackError);
+      }
+    }
+
+    if (issueSaved && previousIssueState) {
+      try {
+        const issueToRestore = await Issue.findById(req.params.id);
+        if (issueToRestore) {
+          issueToRestore.set(previousIssueState);
+          await issueToRestore.save();
+        }
+      } catch (rollbackError) {
+        console.error("Failed to restore issue after PDF move error:", rollbackError);
+      }
+    }
+
+    for (const { move } of [...pdfMoves].reverse()) {
+      try {
+        await rollbackArticlePdfMove(move);
+      } catch (rollbackError) {
+        console.error("Failed to roll back issue article PDF move:", rollbackError);
+      }
+    }
+
+    if (storageIdentityChangedForRollback && preparedNextIssueIdentity) {
+      try {
+        await removeIssueArticlePdfDirectory(preparedNextIssueIdentity);
+      } catch (rollbackError) {
+        console.error("Failed to remove unused renamed issue folder:", rollbackError);
+      }
+    }
+
     console.error("updateAdminIssue error:", error);
 
     res.status(500).json({
       success: false,
-      message: "Failed to update issue.",
+      message: error?.message || "Failed to update issue.",
     });
   }
 };
@@ -809,9 +1031,15 @@ export const deleteAdminIssue = async (
     await issue.deleteOne();
     await normalizeIssueOrders();
 
+    try {
+      await removeIssueArticlePdfDirectory(issue);
+    } catch (storageError) {
+      console.warn("Issue deleted but its article folder cleanup failed:", storageError);
+    }
+
     res.status(200).json({
       success: true,
-      message: "Issue deleted successfully.",
+      message: "Issue and its article PDF folder deleted successfully.",
     });
   } catch (error) {
     console.error("deleteAdminIssue error:", error);

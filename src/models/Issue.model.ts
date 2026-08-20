@@ -30,7 +30,7 @@ const IssueSchema = new Schema<IIssue>(
     },
     category: {
       type: String,
-      required: true,
+      default: "Science & Technology",
       trim: true,
     },
     issn: {
