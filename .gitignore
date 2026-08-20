@@ -7,3 +7,6 @@ dist/
 # Runtime article uploads and temporary files are stored on the server, not in Git.
 public/pdfs/articles/**
 .tmp/
+
+# Local development Media Library storage. Production uses STORAGE_ROOT outside the repo.
+storage/

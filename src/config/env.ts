@@ -43,6 +43,8 @@ export const env = {
     .map((url) => url.trim())
     .filter(Boolean),
 
+  storageRoot: process.env.STORAGE_ROOT?.trim() || "storage",
+
   admin: {
     name: process.env.ADMIN_NAME || "Admin",
     email: process.env.ADMIN_EMAIL || "admin@bupfstjournal.com",
@@ -57,12 +59,6 @@ export const env = {
     otpExpiryMinutes: Number(process.env.ADMIN_OTP_EXPIRY_MINUTES || 10),
     otpCooldownSeconds: Number(process.env.ADMIN_OTP_COOLDOWN_SECONDS || 60),
     otpMaxAttempts: Number(process.env.ADMIN_OTP_MAX_ATTEMPTS || 5),
-  },
-
-  cloudinary: {
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME || "your_cloud_name",
-    apiKey: process.env.CLOUDINARY_API_KEY || "your_api_key",
-    apiSecret: process.env.CLOUDINARY_API_SECRET || "your_api_secret",
   },
 
   citationSync: {

@@ -1,9 +1,11 @@
 import { Response } from "express";
-import streamifier from "streamifier";
-import cloudinary from "../config/cloudinary";
 import Media, { MediaType } from "../models/Media.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 import { detectAllowedUploadMimeType } from "../utils/fileSignature";
+import {
+  deleteLocalMediaFile,
+  saveLocalMedia,
+} from "../utils/mediaStorage";
 
 const allowedMediaFolders = new Set([
   "general",
@@ -34,31 +36,12 @@ const getMediaType = (mimeType: string): MediaType => {
   return "other";
 };
 
-const uploadBufferToCloudinary = (
-  fileBuffer: Buffer,
-  folder: string,
-  resourceType: "image" | "raw"
-): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder: `bup-fst-journal/${folder}`,
-        resource_type: resourceType,
-      },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve(result);
-      }
-    );
-
-    streamifier.createReadStream(fileBuffer).pipe(uploadStream);
-  });
-};
-
 export const uploadMedia = async (
   req: AdminAuthRequest,
   res: Response
 ): Promise<void> => {
+  let storedFileKey = "";
+
   try {
     const file = req.file;
 
@@ -70,66 +53,60 @@ export const uploadMedia = async (
       return;
     }
 
-const detectedMimeType =
-  detectAllowedUploadMimeType(file.buffer);
+    const detectedMimeType = detectAllowedUploadMimeType(file.buffer);
 
-if (!detectedMimeType) {
-  res.status(400).json({
-    success: false,
-    message:
-      "The uploaded file content is not a supported file type.",
-  });
-  return;
-}
+    if (!detectedMimeType) {
+      res.status(400).json({
+        success: false,
+        message: "The uploaded file content is not a supported file type.",
+      });
+      return;
+    }
 
-const reportedMimeType =
-  file.mimetype === "image/jpg"
-    ? "image/jpeg"
-    : file.mimetype.toLowerCase();
+    const reportedMimeType =
+      file.mimetype === "image/jpg"
+        ? "image/jpeg"
+        : file.mimetype.toLowerCase();
 
-if (reportedMimeType !== detectedMimeType) {
-  res.status(400).json({
-    success: false,
-    message:
-      "The uploaded file content does not match its reported file type.",
-  });
-  return;
-}
+    if (reportedMimeType !== detectedMimeType) {
+      res.status(400).json({
+        success: false,
+        message:
+          "The uploaded file content does not match its reported file type.",
+      });
+      return;
+    }
 
-const folder = String(
-  req.body.folder || "general"
-).trim();
+    const folder = String(req.body.folder || "general").trim();
 
-if (!allowedMediaFolders.has(folder)) {
-  res.status(400).json({
-    success: false,
-    message: "Invalid media folder.",
-  });
-  return;
-}
+    if (!allowedMediaFolders.has(folder)) {
+      res.status(400).json({
+        success: false,
+        message: "Invalid media folder.",
+      });
+      return;
+    }
 
-const title =
-  String(req.body.title || file.originalname)
-    .trim()
-    .slice(0, 150) || "Untitled media";
+    const title =
+      String(req.body.title || file.originalname)
+        .trim()
+        .slice(0, 150) || "Untitled media";
 
-const mediaType = getMediaType(
-  detectedMimeType
-);
+    const mediaType = getMediaType(detectedMimeType);
 
-const resourceType =
-  mediaType === "image" ? "image" : "raw";
-
-    const uploaded = await uploadBufferToCloudinary(
-      file.buffer,
+    const stored = await saveLocalMedia({
+      buffer: file.buffer,
       folder,
-      resourceType
-    );
+      originalName: file.originalname,
+      mimeType: detectedMimeType,
+    });
+
+    storedFileKey = stored.storageKey;
 
     const media = await Media.create({
       title,
-      fileUrl: uploaded.secure_url,
-      publicId: uploaded.public_id,
+      fileUrl: stored.publicUrl,
+      publicId: stored.storageKey,
       fileType: mediaType,
       mimeType: detectedMimeType,
       size: file.size,
@@ -139,10 +116,18 @@ const resourceType =
 
     res.status(201).json({
       success: true,
-      message: "File uploaded successfully.",
+      message: "File uploaded successfully to local journal storage.",
       media,
     });
   } catch (error) {
+    if (storedFileKey) {
+      try {
+        await deleteLocalMediaFile(storedFileKey);
+      } catch {
+        // Preserve the original upload error for the administrator.
+      }
+    }
+
     console.error("Media upload error:", error);
 
     res.status(500).json({
@@ -158,7 +143,6 @@ export const getAllMedia = async (
 ): Promise<void> => {
   try {
     const { type, folder } = req.query;
-
     const filter: Record<string, any> = {};
 
     if (type) filter.fileType = type;
@@ -193,10 +177,11 @@ export const deleteMedia = async (
       return;
     }
 
-    await cloudinary.uploader.destroy(media.publicId, {
-      resource_type: media.fileType === "image" ? "image" : "raw",
-    });
+    const removedFromDisk = await deleteLocalMediaFile(media.fileUrl);
 
+    if (!removedFromDisk) {
+      await deleteLocalMediaFile(media.publicId);
+    }
     await media.deleteOne();
 
     res.status(200).json({

@@ -11,6 +11,7 @@ import { startCitationSyncScheduler } from "./services/citationScheduler.service
 import helmet from "helmet";
 import multer from "multer";
 import cookieParser from "cookie-parser";
+import { getMediaStorageRoot } from "./utils/mediaStorage";
 
 const app = express();
 
@@ -83,6 +84,20 @@ app.use(
   express.static(path.join(process.cwd(), "public", "pdfs"), {
     setHeaders: (res) => {
       res.setHeader("Cache-Control", "no-store");
+    },
+  })
+);
+
+// Media Library files live in STORAGE_ROOT. In production this directory is
+// outside the Git deployment, so replacing application code cannot remove uploads.
+app.use(
+  "/media",
+  express.static(getMediaStorageRoot(), {
+    dotfiles: "deny",
+    maxAge: "30d",
+    immutable: true,
+    setHeaders: (res) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
     },
   })
 );
