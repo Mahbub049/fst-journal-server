@@ -187,17 +187,9 @@ export const loginAdmin = async (
       return;
     }
 
-    if (!admin.isActive) {
-      res.status(403).json({
-        success: false,
-        message: "This admin account is inactive.",
-      });
-      return;
-    }
-
     const isMatch = await admin.comparePassword(String(password));
 
-    if (!isMatch) {
+    if (!isMatch || !admin.isActive) {
       res.status(401).json({
         success: false,
         message: "Invalid email or password.",
@@ -418,10 +410,7 @@ export const requestAdminPasswordReset = async (
     const waitSeconds = getCooldownWaitSeconds(admin.resetOtpLastSentAt);
 
     if (waitSeconds > 0) {
-      res.status(429).json({
-        success: false,
-        message: `Please wait ${waitSeconds} seconds before requesting another reset OTP.`,
-      });
+      res.status(200).json(genericResponse);
       return;
     }
 
