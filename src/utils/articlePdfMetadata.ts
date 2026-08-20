@@ -273,85 +273,45 @@ const joinRawTextItems = (items: PositionedTextItem[]) => {
  * then use its Y position to isolate the complete author band. This preserves
  * wrapped author names such as "Sayma Alam" + "Suha1".
  */
-const extractJfstFrontMatterFromLayout = (
-  layout: RenderedPageLayout | undefined
-): JfstFrontMatter | null => {
-  if (!layout?.items?.length) return null;
-
-  const items = layout.items
-    .filter((item) => Boolean(String(item.text || "").trim()))
-    .sort((a, b) => a.index - b.index);
-
-  const headerItem = items.find((item) => /\bJournal\s+of\s+FST\b/i.test(item.text));
-  const abstractItem = items.find(
-    (item) => /^\s*Abstract\b/i.test(normalizePdfText(item.text))
+const countAuthorAffiliationSignals = (value: string) => {
+  const normalized = normalizeSuperscriptDigits(cleanLine(value || ""));
+  const matches = normalized.match(
+    /[A-Za-zÀ-ÖØ-öø-ÿ.'’\)\]]\s*(?:[1-9]\d?(?:\s*[-–,]\s*[1-9]\d?)*)\s*[*†‡]*(?=\s*(?:[,;|]|$))/g
   );
 
-  if (!headerItem || !abstractItem || abstractItem.index <= headerItem.index) {
-    return null;
-  }
-
-  // Exclude header page numbers (e.g. 23, 195) by requiring the marker to be
-  // visibly below the running header. All JFST author superscripts are well
-  // below this threshold.
-  const firstAuthorMarker = items.find(
-    (item) =>
-      item.index > headerItem.index &&
-      item.index < abstractItem.index &&
-      item.y < headerItem.y - 15 &&
-      item.y > abstractItem.y + 4 &&
-      isAffiliationMarkerItem(item.text)
-  );
-
-  if (!firstAuthorMarker) return null;
-
-  // The author name baseline is normally 0-3 PDF units below the superscript.
-  // A +6 upper tolerance safely includes the first author's name while keeping
-  // the title (typically 20+ units above) out of the author region.
-  const authorUpperY = firstAuthorMarker.y + 6;
-  const authorLowerY = abstractItem.y + 5;
-
-  const authorItems = items.filter(
-    (item) =>
-      item.index > headerItem.index &&
-      item.index < abstractItem.index &&
-      item.y <= authorUpperY &&
-      item.y >= authorLowerY
-  );
-
-  const authorBlock = joinRawTextItems(authorItems);
-  const authors = extractAuthorsFromBlock(authorBlock);
-
-  if (authors.length === 0) return null;
-
-  // Title ends before the author band. Using the marker-derived boundary avoids
-  // mistaking a multi-line title such as "... / Ensemble Learning" for an
-  // author name.
-  const titleLowerY = authorUpperY + 5;
-  const titleUpperY = headerItem.y - 10;
-  const titleItems = items.filter(
-    (item) =>
-      item.index > headerItem.index &&
-      item.index < firstAuthorMarker.index &&
-      item.y < titleUpperY &&
-      item.y > titleLowerY
-  );
-
-  const title = joinRawTextItems(titleItems);
-  if (!title) return null;
-
-  return { title, authors };
+  return matches?.length || 0;
 };
 
-/**
- * Text-only fallback for PDFs where PDF.js does not expose usable coordinates.
- * This is intentionally secondary; normal JFST PDFs should use the positioned
- * layout parser above.
- */
-const extractJfstFrontMatterFromText = (
-  firstPageText: string
+const isStrongAuthorLine = (value: string) => {
+  const line = normalizeSuperscriptDigits(cleanLine(value || ""));
+  if (!line || isJfstHeaderLine(line) || /^abstract\b/i.test(line)) return false;
+  if (isLikelyAffiliationLine(line)) return false;
+
+  const markerCount = countAuthorAffiliationSignals(line);
+  if (markerCount === 0) return false;
+
+  // Multiple affiliation markers, a corresponding-author symbol, or a comma
+  // are all very strong evidence that this is the printed author row rather
+  // than a title containing a number (for example "COVID-19").
+  if (markerCount >= 2 || /[*†‡]/.test(line) || /[,;]/.test(line)) {
+    return true;
+  }
+
+  // Cautious fallback for a single-author paper that has only an affiliation
+  // number and no corresponding-author symbol.
+  const withoutMarker = stripAuthorAffiliationMarker(line);
+  const words = withoutMarker.split(/\s+/).filter(Boolean);
+  return words.length >= 2 && words.length <= 8 && looksLikeAuthorName(withoutMarker);
+};
+
+const extractJfstFrontMatterFromLines = (
+  inputLines: string[]
 ): JfstFrontMatter | null => {
-  const lines = splitLines(normalizePdfText(firstPageText)).slice(0, 80);
+  const lines = inputLines
+    .map((line) => cleanLine(normalizePdfText(line)))
+    .filter(Boolean)
+    .slice(0, 100);
+
   const headerIndex = lines.findIndex(isJfstHeaderLine);
   const abstractIndex = lines.findIndex(
     (line, index) => index > headerIndex && /^abstract\b/i.test(line)
@@ -361,23 +321,174 @@ const extractJfstFrontMatterFromText = (
 
   const frontLines = lines.slice(headerIndex + 1, abstractIndex);
 
-  // Work backward and find the shortest trailing block that parses into one or
-  // more author names. Prefer a block containing commas / affiliation markers.
-  for (let count = 1; count <= Math.min(4, frontLines.length - 1); count += 1) {
-    const authorBlock = cleanLine(frontLines.slice(-count).join(" "));
-    const authors = extractAuthorsFromBlock(authorBlock);
-    const hasStrongAuthorSignal =
-      /,|\band\b|&|[A-Za-zÀ-ÖØ-öø-ÿ.'’)]\s*[1-9]\d?\s*[*†‡]*/i.test(
-        authorBlock
-      );
+  // Locate every line that contains a name immediately followed by an
+  // affiliation superscript/marker. The author block spans from the first such
+  // line through the last such line. Any wrapped continuation line in between
+  // is kept automatically. This handles PDFs whose text stream looks like:
+  //   Tahmid Tamrin Suki1*
+  //   , Md Motinur Rahman2
+  //   , Subrata Saha2
+  //   , Sayma Alam
+  //   Suha1
+  //   , Nazneen Akhter3
+  // without dropping either the earlier authors or the wrapped "Sayma Alam
+  // Suha" name.
+  const markerLineIndexes = frontLines
+    .map((line, index) =>
+      countAuthorAffiliationSignals(line) > 0 ? index : -1
+    )
+    .filter((index) => index >= 0);
 
-    if (authors.length > 0 && (hasStrongAuthorSignal || count === 1)) {
-      const title = cleanLine(frontLines.slice(0, -count).join(" "));
-      if (title) return { title, authors };
+  if (markerLineIndexes.length === 0) return null;
+
+  let authorStart = markerLineIndexes[0];
+  const authorEnd = markerLineIndexes[markerLineIndexes.length - 1];
+
+  // If an earlier numeric title fragment were ever mistaken for an affiliation
+  // marker, prefer the first clearly author-like line in the marker span. This
+  // keeps the parser conservative without reintroducing the old truncation bug.
+  for (const index of markerLineIndexes) {
+    if (index > authorEnd) break;
+    if (isStrongAuthorLine(frontLines[index])) {
+      authorStart = index;
+      break;
     }
   }
 
-  return null;
+  const authorBlock = cleanLine(
+    frontLines.slice(authorStart, authorEnd + 1).join(" ")
+  );
+  const authors = extractAuthorsFromBlock(authorBlock);
+  if (authors.length === 0) return null;
+
+  const title = cleanLine(frontLines.slice(0, authorStart).join(" "));
+  if (!title) return null;
+
+  return { title, authors };
+};
+
+const joinPositionedItemsByReadingOrder = (items: PositionedTextItem[]) => {
+  if (!items.length) return "";
+
+  const sorted = [...items].sort((a, b) => {
+    if (Math.abs(b.y - a.y) > 0.01) return b.y - a.y;
+    return a.x - b.x;
+  });
+
+  const lines: PositionedLine[] = [];
+  const yTolerance = 5;
+
+  for (const item of sorted) {
+    let closest: PositionedLine | null = null;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    for (const line of lines) {
+      const distance = Math.abs(line.y - item.y);
+      if (distance <= yTolerance && distance < closestDistance) {
+        closest = line;
+        closestDistance = distance;
+      }
+    }
+
+    if (!closest) {
+      lines.push({ y: item.y, items: [item] });
+      continue;
+    }
+
+    closest.items.push(item);
+    closest.y =
+      closest.items.reduce((sum, current) => sum + current.y, 0) /
+      closest.items.length;
+  }
+
+  lines.sort((a, b) => b.y - a.y);
+
+  return cleanLine(
+    lines
+      .map((line) => joinRawTextItems([...line.items].sort((a, b) => a.x - b.x)))
+      .filter(Boolean)
+      .join(" ")
+  );
+};
+
+/**
+ * Extract Journal of FST title/authors from positioned first-page text.
+ *
+ * Primary path: use the reconstructed visual lines. This is more reliable than
+ * relying on PDF content-stream item order and correctly keeps every row of a
+ * wrapped author list.
+ *
+ * Secondary path: use the affiliation superscript's Y position to isolate the
+ * author band directly. This handles PDFs where superscripts are emitted as
+ * separate text items and line reconstruction cannot confidently identify the
+ * row.
+ */
+const extractJfstFrontMatterFromLayout = (
+  layout: RenderedPageLayout | undefined
+): JfstFrontMatter | null => {
+  if (!layout?.items?.length) return null;
+
+  const lineBased = extractJfstFrontMatterFromLines(
+    (layout.lines || []).map((line) => line.text)
+  );
+  if (lineBased) return lineBased;
+
+  const items = layout.items.filter((item) => Boolean(String(item.text || "").trim()));
+
+  const headerItem = items.find((item) => /\bJournal\s+of\s+FST\b/i.test(item.text));
+  const abstractItem = items.find((item) =>
+    /^\s*Abstract\b/i.test(normalizePdfText(item.text))
+  );
+
+  if (!headerItem || !abstractItem) return null;
+
+  // Use visual position rather than content-stream index. Word/PDF exporters
+  // are free to emit superscripts and punctuation in a different internal
+  // order even though they appear correctly on the page.
+  const authorMarkers = items.filter(
+    (item) =>
+      item.y < headerItem.y - 15 &&
+      item.y > abstractItem.y + 4 &&
+      isAffiliationMarkerItem(item.text)
+  );
+
+  if (authorMarkers.length === 0) return null;
+
+  const highestAuthorMarkerY = Math.max(...authorMarkers.map((item) => item.y));
+  const authorUpperY = highestAuthorMarkerY + 6;
+  const authorLowerY = abstractItem.y + 5;
+
+  const authorItems = items.filter(
+    (item) => item.y <= authorUpperY && item.y >= authorLowerY
+  );
+
+  const authorBlock = joinPositionedItemsByReadingOrder(authorItems);
+  const authors = extractAuthorsFromBlock(authorBlock);
+  if (authors.length === 0) return null;
+
+  const titleLines = (layout.lines || [])
+    .filter(
+      (line) =>
+        line.y < headerItem.y - 8 &&
+        line.y > authorUpperY + 4 &&
+        !isJfstHeaderLine(line.text)
+    )
+    .map((line) => line.text);
+
+  const title = cleanLine(titleLines.join(" "));
+  if (!title) return null;
+
+  return { title, authors };
+};
+
+/**
+ * Text-only fallback for PDFs where positioned PDF.js data is unavailable.
+ * Uses the same full trailing author-block strategy as the visual parser.
+ */
+const extractJfstFrontMatterFromText = (
+  firstPageText: string
+): JfstFrontMatter | null => {
+  return extractJfstFrontMatterFromLines(splitLines(normalizePdfText(firstPageText)));
 };
 
 const splitMetadataAuthors = (value: string) => {
