@@ -17,7 +17,7 @@ export const uploadSingleFile = multer({
   storage,
 
   limits: {
-    fileSize: 15 * 1024 * 1024,
+    fileSize: 50 * 1024 * 1024,
     files: 1,
     fields: 6,
     parts: 7,

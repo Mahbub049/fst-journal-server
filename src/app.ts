@@ -132,7 +132,7 @@ app.use(
       res.status(isFileTooLarge ? 413 : 400).json({
         success: false,
         message: isFileTooLarge
-          ? "The uploaded file exceeds the 15 MB limit."
+          ? "The uploaded file exceeds the 50 MB limit."
           : "The upload request is invalid.",
       });
       return;
