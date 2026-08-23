@@ -81,6 +81,14 @@ export interface IHomepage extends Document {
   launchModalEndAt: Date | null;
   launchModalFrequency: "every-visit" | "once-per-session" | "once-per-day";
   launchModalDismissible: boolean;
+  launchModalAutoCloseSeconds: number;
+
+  celebrationEnabled: boolean;
+  celebrationStyle: "confetti" | "fireworks" | "both";
+  celebrationDurationSeconds: number;
+  celebrationFrequency: "once-per-session" | "every-page";
+  celebrationStartAt: Date | null;
+  celebrationEndAt: Date | null;
 
   isPublished: boolean;
 }
@@ -394,6 +402,41 @@ const homepageSchema = new Schema<IHomepage>(
     launchModalDismissible: {
       type: Boolean,
       default: true,
+    },
+    launchModalAutoCloseSeconds: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 120,
+    },
+
+    celebrationEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    celebrationStyle: {
+      type: String,
+      enum: ["confetti", "fireworks", "both"],
+      default: "both",
+    },
+    celebrationDurationSeconds: {
+      type: Number,
+      default: 8,
+      min: 2,
+      max: 30,
+    },
+    celebrationFrequency: {
+      type: String,
+      enum: ["once-per-session", "every-page"],
+      default: "once-per-session",
+    },
+    celebrationStartAt: {
+      type: Date,
+      default: null,
+    },
+    celebrationEndAt: {
+      type: Date,
+      default: null,
     },
 
     isPublished: {

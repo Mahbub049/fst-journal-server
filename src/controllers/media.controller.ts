@@ -11,6 +11,7 @@ const allowedMediaFolders = new Set([
   "general",
   "homepage",
   "homepage-carousel",
+  "homepage-launch-modal",
   "issues",
   "articles",
   "editorial-board",

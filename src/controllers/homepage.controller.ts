@@ -135,6 +135,32 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
       ? body.launchModalFrequency
       : "once-per-session",
     launchModalDismissible: body.launchModalDismissible ?? true,
+    launchModalAutoCloseSeconds: clampNumber(
+      body.launchModalAutoCloseSeconds,
+      0,
+      0,
+      120
+    ),
+
+    celebrationEnabled: body.celebrationEnabled ?? false,
+    celebrationStyle: ["confetti", "fireworks", "both"].includes(
+      String(body.celebrationStyle)
+    )
+      ? body.celebrationStyle
+      : "both",
+    celebrationDurationSeconds: clampNumber(
+      body.celebrationDurationSeconds,
+      8,
+      2,
+      30
+    ),
+    celebrationFrequency: ["once-per-session", "every-page"].includes(
+      String(body.celebrationFrequency)
+    )
+      ? body.celebrationFrequency
+      : "once-per-session",
+    celebrationStartAt: normalizeTargetDate(body.celebrationStartAt),
+    celebrationEndAt: normalizeTargetDate(body.celebrationEndAt),
 
     isPublished: body.isPublished ?? true,
   };
