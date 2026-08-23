@@ -6,20 +6,39 @@ const clampNumber = (
   value: unknown,
   fallback: number,
   minimum: number,
-  maximum: number
+  maximum: number,
 ) => {
   const numericValue = Number(value);
-
   if (!Number.isFinite(numericValue)) return fallback;
-
   return Math.min(Math.max(Math.round(numericValue), minimum), maximum);
 };
 
 const normalizeTargetDate = (value: unknown) => {
   if (!value) return null;
-
   const date = new Date(String(value));
   return Number.isFinite(date.getTime()) ? date : null;
+};
+
+const normalizeDisplayScope = (value: unknown, fallback: "homepage" | "all") => {
+  const scope = String(value || "");
+  return ["homepage", "all", "custom"].includes(scope) ? scope : fallback;
+};
+
+const normalizeDisplayPaths = (value: unknown) => {
+  if (!Array.isArray(value)) return [];
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .map((item) => {
+          if (item === "*") return item;
+          return item.startsWith("/") ? item : `/${item}`;
+        })
+        .slice(0, 100),
+    ),
+  );
 };
 
 const normalizeHomepagePayload = (body: Record<string, any>) => {
@@ -58,7 +77,7 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
       body.carouselIntervalSeconds,
       5,
       2,
-      30
+      30,
     ),
     carouselImages: Array.isArray(body.carouselImages)
       ? body.carouselImages
@@ -88,7 +107,6 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
 
     articlesSectionTitle: body.articlesSectionTitle || "",
     articlesSectionSubtitle: body.articlesSectionSubtitle || "",
-
     recentIssuesTitle: body.recentIssuesTitle || "",
     recentIssuesSubtitle: body.recentIssuesSubtitle || "",
 
@@ -104,7 +122,7 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
 
     launchModalEnabled: body.launchModalEnabled ?? false,
     launchModalLayout: ["text", "image-text", "image"].includes(
-      String(body.launchModalLayout)
+      String(body.launchModalLayout),
     )
       ? body.launchModalLayout
       : "text",
@@ -129,9 +147,11 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
       "Continue to Website",
     launchModalStartAt: normalizeTargetDate(body.launchModalStartAt),
     launchModalEndAt: normalizeTargetDate(body.launchModalEndAt),
-    launchModalFrequency: ["every-visit", "once-per-session", "once-per-day"].includes(
-      String(body.launchModalFrequency)
-    )
+    launchModalFrequency: [
+      "every-visit",
+      "once-per-session",
+      "once-per-day",
+    ].includes(String(body.launchModalFrequency))
       ? body.launchModalFrequency
       : "once-per-session",
     launchModalDismissible: body.launchModalDismissible ?? true,
@@ -139,12 +159,14 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
       body.launchModalAutoCloseSeconds,
       0,
       0,
-      120
+      120,
     ),
+    launchModalScope: normalizeDisplayScope(body.launchModalScope, "homepage"),
+    launchModalCustomPaths: normalizeDisplayPaths(body.launchModalCustomPaths),
 
     celebrationEnabled: body.celebrationEnabled ?? false,
     celebrationStyle: ["confetti", "fireworks", "both"].includes(
-      String(body.celebrationStyle)
+      String(body.celebrationStyle),
     )
       ? body.celebrationStyle
       : "both",
@@ -152,15 +174,17 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
       body.celebrationDurationSeconds,
       8,
       2,
-      30
+      30,
     ),
     celebrationFrequency: ["once-per-session", "every-page"].includes(
-      String(body.celebrationFrequency)
+      String(body.celebrationFrequency),
     )
       ? body.celebrationFrequency
       : "once-per-session",
     celebrationStartAt: normalizeTargetDate(body.celebrationStartAt),
     celebrationEndAt: normalizeTargetDate(body.celebrationEndAt),
+    celebrationScope: normalizeDisplayScope(body.celebrationScope, "all"),
+    celebrationCustomPaths: normalizeDisplayPaths(body.celebrationCustomPaths),
 
     isPublished: body.isPublished ?? true,
   };
@@ -168,12 +192,10 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
 
 export const getPublicHomepage = async (
   _req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
-    const homepage = await Homepage.findOne({ isPublished: true }).select(
-      "-__v"
-    );
+    const homepage = await Homepage.findOne({ isPublished: true }).select("-__v");
 
     if (!homepage) {
       res.status(404).json({
@@ -183,10 +205,7 @@ export const getPublicHomepage = async (
       return;
     }
 
-    res.status(200).json({
-      success: true,
-      homepage,
-    });
+    res.status(200).json({ success: true, homepage });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -197,19 +216,12 @@ export const getPublicHomepage = async (
 
 export const getAdminHomepage = async (
   _req: AdminAuthRequest,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     let homepage = await Homepage.findOne();
-
-    if (!homepage) {
-      homepage = await Homepage.create({});
-    }
-
-    res.status(200).json({
-      success: true,
-      homepage,
-    });
+    if (!homepage) homepage = await Homepage.create({});
+    res.status(200).json({ success: true, homepage });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -220,7 +232,7 @@ export const getAdminHomepage = async (
 
 export const updateAdminHomepage = async (
   req: AdminAuthRequest,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   try {
     const payload = normalizeHomepagePayload(req.body);
@@ -234,7 +246,6 @@ export const updateAdminHomepage = async (
     }
 
     let homepage = await Homepage.findOne();
-
     if (!homepage) {
       homepage = await Homepage.create(payload);
     } else {
@@ -249,7 +260,6 @@ export const updateAdminHomepage = async (
     });
   } catch (error) {
     console.error("Update homepage error:", error);
-
     res.status(500).json({
       success: false,
       message: "Failed to update homepage content.",
