@@ -19,9 +19,19 @@ const normalizeTargetDate = (value: unknown) => {
   return Number.isFinite(date.getTime()) ? date : null;
 };
 
-const normalizeDisplayScope = (value: unknown, fallback: "homepage" | "all") => {
+type DisplayScope = "homepage" | "all" | "custom";
+
+const normalizeDisplayScope = (
+  value: unknown,
+  fallback: DisplayScope,
+): DisplayScope => {
   const scope = String(value || "");
-  return ["homepage", "all", "custom"].includes(scope) ? scope : fallback;
+
+  if (scope === "homepage" || scope === "all" || scope === "custom") {
+    return scope;
+  }
+
+  return fallback;
 };
 
 const normalizeDisplayPaths = (value: unknown) => {
