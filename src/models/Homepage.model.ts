@@ -67,6 +67,21 @@ export interface IHomepage extends Document {
 
   buttons: IHomepageButton[];
 
+  launchModalEnabled: boolean;
+  launchModalLayout: "text" | "image-text" | "image";
+  launchModalEyebrow: string;
+  launchModalTitle: string;
+  launchModalMessage: string;
+  launchModalImageUrl: string;
+  launchModalImageAlt: string;
+  launchModalPrimaryLabel: string;
+  launchModalPrimaryUrl: string;
+  launchModalSecondaryLabel: string;
+  launchModalStartAt: Date | null;
+  launchModalEndAt: Date | null;
+  launchModalFrequency: "every-visit" | "once-per-session" | "once-per-day";
+  launchModalDismissible: boolean;
+
   isPublished: boolean;
 }
 
@@ -312,6 +327,73 @@ const homepageSchema = new Schema<IHomepage>(
     buttons: {
       type: [buttonSchema],
       default: [],
+    },
+
+    launchModalEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    launchModalLayout: {
+      type: String,
+      enum: ["text", "image-text", "image"],
+      default: "text",
+    },
+    launchModalEyebrow: {
+      type: String,
+      default: "A NEW CHAPTER BEGINS",
+      trim: true,
+    },
+    launchModalTitle: {
+      type: String,
+      default: "Welcome to the New Journal of FST Website",
+      trim: true,
+    },
+    launchModalMessage: {
+      type: String,
+      default:
+        "We are delighted to welcome you to the newly launched digital home of the Journal of FST, Bangladesh University of Professionals. Explore our research, editorial community, current issues, and future calls for papers through a faster and more accessible journal experience.",
+    },
+    launchModalImageUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    launchModalImageAlt: {
+      type: String,
+      default: "Journal of FST inauguration",
+      trim: true,
+    },
+    launchModalPrimaryLabel: {
+      type: String,
+      default: "Explore the Journal",
+      trim: true,
+    },
+    launchModalPrimaryUrl: {
+      type: String,
+      default: "/issues/archive",
+      trim: true,
+    },
+    launchModalSecondaryLabel: {
+      type: String,
+      default: "Continue to Website",
+      trim: true,
+    },
+    launchModalStartAt: {
+      type: Date,
+      default: null,
+    },
+    launchModalEndAt: {
+      type: Date,
+      default: null,
+    },
+    launchModalFrequency: {
+      type: String,
+      enum: ["every-visit", "once-per-session", "once-per-day"],
+      default: "once-per-session",
+    },
+    launchModalDismissible: {
+      type: Boolean,
+      default: true,
     },
 
     isPublished: {

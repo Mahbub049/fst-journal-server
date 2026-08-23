@@ -102,6 +102,40 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
         }))
       : [],
 
+    launchModalEnabled: body.launchModalEnabled ?? false,
+    launchModalLayout: ["text", "image-text", "image"].includes(
+      String(body.launchModalLayout)
+    )
+      ? body.launchModalLayout
+      : "text",
+    launchModalEyebrow:
+      String(body.launchModalEyebrow || "").trim() || "A NEW CHAPTER BEGINS",
+    launchModalTitle:
+      String(body.launchModalTitle || "").trim() ||
+      "Welcome to the New Journal of FST Website",
+    launchModalMessage:
+      String(body.launchModalMessage || "").trim() ||
+      "We are delighted to welcome you to the newly launched digital home of the Journal of FST, Bangladesh University of Professionals. Explore our research, editorial community, current issues, and future calls for papers through a faster and more accessible journal experience.",
+    launchModalImageUrl: String(body.launchModalImageUrl || "").trim(),
+    launchModalImageAlt:
+      String(body.launchModalImageAlt || "").trim() ||
+      "Journal of FST inauguration",
+    launchModalPrimaryLabel:
+      String(body.launchModalPrimaryLabel || "").trim() || "Explore the Journal",
+    launchModalPrimaryUrl:
+      String(body.launchModalPrimaryUrl || "").trim() || "/issues/archive",
+    launchModalSecondaryLabel:
+      String(body.launchModalSecondaryLabel || "").trim() ||
+      "Continue to Website",
+    launchModalStartAt: normalizeTargetDate(body.launchModalStartAt),
+    launchModalEndAt: normalizeTargetDate(body.launchModalEndAt),
+    launchModalFrequency: ["every-visit", "once-per-session", "once-per-day"].includes(
+      String(body.launchModalFrequency)
+    )
+      ? body.launchModalFrequency
+      : "once-per-session",
+    launchModalDismissible: body.launchModalDismissible ?? true,
+
     isPublished: body.isPublished ?? true,
   };
 };
