@@ -77,6 +77,11 @@ export interface IHomepage extends Document {
   launchModalAutoCloseSeconds: number;
   launchModalScope: DisplayScope;
   launchModalCustomPaths: string[];
+  launchModalWebsiteLabel: string;
+  launchModalFacultyLabel: string;
+  launchModalShowJournalProfile: boolean;
+  launchModalShowPrimaryButton: boolean;
+  launchModalShowSecondaryButton: boolean;
 
   celebrationEnabled: boolean;
   celebrationStyle: "confetti" | "fireworks" | "both";
@@ -206,7 +211,7 @@ const homepageSchema = new Schema<IHomepage>(
     },
     launchModalTitle: {
       type: String,
-      default: "Welcome to the New Journal of FST Website",
+      default: "Welcome\nto the\nJournal of FST.",
       trim: true,
     },
     launchModalMessage: {
@@ -250,6 +255,19 @@ const homepageSchema = new Schema<IHomepage>(
       default: "homepage",
     },
     launchModalCustomPaths: { type: [String], default: [] },
+    launchModalWebsiteLabel: {
+      type: String,
+      default: "ONLINE JOURNAL WEBSITE",
+      trim: true,
+    },
+    launchModalFacultyLabel: {
+      type: String,
+      default: "Faculty of Science & Technology, BUP",
+      trim: true,
+    },
+    launchModalShowJournalProfile: { type: Boolean, default: true },
+    launchModalShowPrimaryButton: { type: Boolean, default: true },
+    launchModalShowSecondaryButton: { type: Boolean, default: true },
 
     celebrationEnabled: { type: Boolean, default: false },
     celebrationStyle: {

@@ -140,7 +140,7 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
       String(body.launchModalEyebrow || "").trim() || "A NEW CHAPTER BEGINS",
     launchModalTitle:
       String(body.launchModalTitle || "").trim() ||
-      "Welcome to the New Journal of FST Website",
+      "Welcome\nto the\nJournal of FST.",
     launchModalMessage:
       String(body.launchModalMessage || "").trim() ||
       "We are delighted to welcome you to the newly launched digital home of the Journal of FST, Bangladesh University of Professionals. Explore our research, editorial community, current issues, and future calls for papers through a faster and more accessible journal experience.",
@@ -173,6 +173,18 @@ const normalizeHomepagePayload = (body: Record<string, any>) => {
     ),
     launchModalScope: normalizeDisplayScope(body.launchModalScope, "homepage"),
     launchModalCustomPaths: normalizeDisplayPaths(body.launchModalCustomPaths),
+    launchModalWebsiteLabel:
+      String(body.launchModalWebsiteLabel || "").trim() ||
+      "ONLINE JOURNAL WEBSITE",
+    launchModalFacultyLabel:
+      String(body.launchModalFacultyLabel || "").trim() ||
+      "Faculty of Science & Technology, BUP",
+    launchModalShowJournalProfile:
+      body.launchModalShowJournalProfile ?? true,
+    launchModalShowPrimaryButton:
+      body.launchModalShowPrimaryButton ?? true,
+    launchModalShowSecondaryButton:
+      body.launchModalShowSecondaryButton ?? true,
 
     celebrationEnabled: body.celebrationEnabled ?? false,
     celebrationStyle: ["confetti", "fireworks", "both"].includes(
