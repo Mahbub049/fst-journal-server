@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import fs from "fs/promises";
 import path from "path";
+import { randomUUID } from "crypto";
+import { getStorageRoot } from "../utils/mediaStorage";
 import CallForPaper, {
   ICallForPaper,
 } from "../models/CallForPaper.model";
@@ -545,6 +547,42 @@ export const updateAdminCallForPaper = async (
 };
 
 
+const getPublishedCallForPaperPdfPath = () =>
+  path.join(getStorageRoot(), "call-for-papers", "call-for-papers.pdf");
+
+// Public PDFs must be read from persistent storage, not from Next.js public/.
+// res.sendFile supports browsers' byte-range PDF requests.
+export const getPublicCallForPaperPdf = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
+  const storedPath = getPublishedCallForPaperPdfPath();
+  const legacyPath = path.join(process.cwd(), "public", "pdfs", "call-for-papers.pdf");
+  let pdfPath = storedPath;
+
+  try {
+    await fs.access(storedPath);
+  } catch {
+    pdfPath = legacyPath;
+    try {
+      await fs.access(legacyPath);
+    } catch {
+      res.status(404).json({ success: false, message: "Call for Papers PDF not found." });
+      return;
+    }
+  }
+
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", 'inline; filename="call-for-papers.pdf"');
+  res.sendFile(pdfPath, { acceptRanges: true, cacheControl: false, lastModified: false }, (error) => {
+    if (error && !res.headersSent) {
+      console.error("Call for Papers PDF delivery failed:", error);
+      res.status(500).json({ success: false, message: "Could not open PDF." });
+    }
+  });
+};
+
 export const uploadAdminCallForPaperPdf = async (
   req: AdminAuthRequest,
   res: Response
@@ -571,17 +609,39 @@ export const uploadAdminCallForPaperPdf = async (
       return;
     }
 
-    const pdfDirectory = path.join(process.cwd(), "public", "pdfs");
-    const pdfFileName = "call-for-papers.pdf";
-    const pdfPath = path.join(pdfDirectory, pdfFileName);
-
+    const pdfPath = getPublishedCallForPaperPdfPath();
+    const pdfDirectory = path.dirname(pdfPath);
     await fs.mkdir(pdfDirectory, { recursive: true });
 
-    // This replaces the existing file if it already exists.
-    await fs.writeFile(pdfPath, file.buffer);
+    // Write to a temporary sibling, then replace the canonical PDF. A backup
+    // avoids Windows rename-over-existing limitations and can be restored if
+    // the new file cannot be published.
+    const tempPath = path.join(pdfDirectory, `upload-${randomUUID()}.pdf`);
+    const backupPath = path.join(pdfDirectory, `previous-${randomUUID()}.pdf`);
+    let previousMoved = false;
+    try {
+      await fs.writeFile(tempPath, file.buffer, { flag: "wx" });
+      try {
+        await fs.rename(pdfPath, backupPath);
+        previousMoved = true;
+      } catch (error: any) {
+        if (error?.code !== "ENOENT") throw error;
+      }
 
-    // Keep the real file path fixed, but add a query string to avoid browser cache.
-    const publicPdfUrl = `/pdfs/${pdfFileName}?v=${Date.now()}`;
+      try {
+        await fs.rename(tempPath, pdfPath);
+      } catch (error) {
+        if (previousMoved) await fs.rename(backupPath, pdfPath);
+        throw error;
+      }
+      if (previousMoved) await fs.rm(backupPath, { force: true });
+    } finally {
+      await fs.rm(tempPath, { force: true });
+    }
+
+    // Serve through the backend's public API rather than a static /pdfs URL.
+    // The client includes a separate bundled file at that same old path.
+    const publicPdfUrl = `/api/call-for-papers/pdf?v=${Date.now()}`;
 
     let callForPaper = await CallForPaper.findOne();
 
@@ -598,7 +658,8 @@ export const uploadAdminCallForPaperPdf = async (
 
       if (
         !currentButtonLink ||
-        currentButtonLink.startsWith("/pdfs/call-for-papers.pdf")
+        currentButtonLink.startsWith("/pdfs/call-for-papers.pdf") ||
+        currentButtonLink.startsWith("/api/call-for-papers/pdf")
       ) {
         callForPaper.pdfActionButtonLink = publicPdfUrl;
       }

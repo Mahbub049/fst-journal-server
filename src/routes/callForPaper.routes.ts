@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   getAdminCallForPaper,
   getPublicCallForPaper,
+  getPublicCallForPaperPdf,
   updateAdminCallForPaper,
   uploadAdminCallForPaperPdf,
 } from "../controllers/callForPaper.controller";
@@ -11,6 +12,7 @@ import { uploadSingleFile } from "../middlewares/upload.middleware";
 const router = Router();
 
 router.get("/", getPublicCallForPaper);
+router.get("/pdf", getPublicCallForPaperPdf);
 
 router.get("/admin", protectAdmin, getAdminCallForPaper);
 router.put("/admin", protectAdmin, updateAdminCallForPaper);
