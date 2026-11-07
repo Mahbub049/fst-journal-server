@@ -5,7 +5,6 @@ import Issue from "../models/Issue.model";
 import { getOjsPublicPdfRoot } from "../utils/ojsPublicPdfStorage";
 import Article from "../models/Article.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
-import { cleanupOjsIssueCover } from "../utils/ojsIssueCoverStorage";
 import {
   buildIssueArticleFolderName,
   ensureIssueArticlePdfDirectory,
@@ -832,7 +831,6 @@ export const updateAdminIssue = async (
       issueNumber: issue.issueNumber,
       publishDateLabel: issue.publishDateLabel,
       coverImage: issue.coverImage,
-      ojsCoverManaged: issue.ojsCoverManaged,
       pdfUrl: issue.pdfUrl || "",
       isRecent: issue.isRecent,
       isPublished: issue.isPublished,
@@ -866,10 +864,7 @@ export const updateAdminIssue = async (
       }
     }
 
-    const adminChangedOjsCover = Boolean(issue.ojsIssueId) &&
-      payload.coverImage !== issue.coverImage;
     issue.set(payload);
-    if (adminChangedOjsCover) issue.ojsCoverManaged = false;
     await issue.save();
     issueSaved = true;
 
@@ -904,12 +899,6 @@ export const updateAdminIssue = async (
       } catch (cleanupError) {
         console.warn("Old issue PDF folder cleanup failed:", cleanupError);
       }
-    }
-
-    // A replaced OJS-owned cover can be removed only after the admin update commits.
-    if (adminChangedOjsCover && previousIssueState?.coverImage) {
-      await cleanupOjsIssueCover(String(previousIssueState.coverImage)).catch(error =>
-        console.warn("Old OJS cover cleanup failed:", error));
     }
 
     res.status(200).json({
@@ -1063,8 +1052,6 @@ export const deleteAdminIssue = async (
     }
 
     await issue.deleteOne();
-    await cleanupOjsIssueCover(issue.coverImage).catch(error =>
-      console.warn("Deleted issue cover cleanup failed:", error));
     await normalizeIssueOrders();
 
     try {
