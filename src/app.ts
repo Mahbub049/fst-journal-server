@@ -12,6 +12,8 @@ import helmet from "helmet";
 import multer from "multer";
 import cookieParser from "cookie-parser";
 import { getMediaStorageRoot } from "./utils/mediaStorage";
+import { requireOjsPdfAuth } from "./controllers/ojsImport.controller";
+import { getOjsPublicPdfRoot } from "./utils/ojsPublicPdfStorage";
 
 const app = express();
 
@@ -62,6 +64,14 @@ app.use(
   })
 );
 
+// Issue manifests are protected by their shared integration token before
+// accepting larger JSON payloads. Regular CMS requests keep the existing 2 MB limit.
+app.use(
+  "/api/integrations/ojs/issue",
+  requireOjsPdfAuth,
+  express.json({ limit: "10mb", strict: true })
+);
+
 app.use(
   express.json({
     limit: "2mb",
@@ -87,6 +97,18 @@ app.use(
     },
   })
 );
+
+// Keep OJS published PDFs outside the Git checkout AND outside the existing
+// manual CMS media directory. Disabled installations mount nothing here.
+if (process.env.OJS_IMPORT_ENABLED === "true") {
+  app.use("/ojs-pdfs", express.static(path.join(getOjsPublicPdfRoot(), "ojs-articles"), {
+    dotfiles: "deny",
+    setHeaders: (res) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+    },
+  }));
+}
 
 // Media Library files live in STORAGE_ROOT. In production this directory is
 // outside the Git deployment, so replacing application code cannot remove uploads.

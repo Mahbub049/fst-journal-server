@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import fs from "fs/promises";
 import path from "path";
 import Issue from "../models/Issue.model";
+import { getOjsPublicPdfRoot } from "../utils/ojsPublicPdfStorage";
 import Article from "../models/Article.model";
 import { AdminAuthRequest } from "../middlewares/adminAuth.middleware";
 import {
@@ -43,6 +44,16 @@ const createIssueSlug = (body: Record<string, any>) => {
 
 const resolveLocalPdfPath = (pdfUrl: string) => {
   const cleanedUrl = pdfUrl.split("?")[0].split("#")[0];
+
+  // Verified, public OJS PDFs are stored outside this Git-managed application.
+  // All existing /pdfs/... file paths continue to work unchanged.
+  if (/^\/ojs-pdfs\/[a-f0-9]{16}\/\d+-\d+-[a-f0-9]{64}\.pdf$/i.test(cleanedUrl)) {
+    const relative = cleanedUrl.slice("/ojs-pdfs/".length);
+    const root = path.resolve(getOjsPublicPdfRoot());
+    const publishedRoot = path.resolve(root, "ojs-articles");
+    const resolved = path.resolve(publishedRoot, relative);
+    return resolved.startsWith(publishedRoot + path.sep) ? resolved : null;
+  }
 
   if (!cleanedUrl.startsWith("/pdfs/")) {
     return null;
@@ -710,6 +721,18 @@ export const updateAdminIssue = async (
     }
 
     const payload = normalizeIssuePayload(req.body);
+
+    // Preserve the OJS issue identity. Make changes in OJS and re-sync instead.
+    if (
+      issue.ojsIssueId &&
+      (payload.volume !== issue.volume || payload.issueNumber !== issue.issueNumber)
+    ) {
+      res.status(409).json({
+        success: false,
+        message: "This issue is linked to OJS. Change its volume or number in OJS and synchronize instead.",
+      });
+      return;
+    }
 
     if (!payload.title.trim()) {
       res.status(400).json({

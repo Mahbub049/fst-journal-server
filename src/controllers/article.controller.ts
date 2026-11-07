@@ -9,6 +9,9 @@ import {
 import { detectAllowedUploadMimeType } from "../utils/fileSignature";
 import { extractArticlePdfMetadata } from "../utils/articlePdfMetadata";
 import { buildIssueArticleFolderName } from "../utils/issueStorage";
+import { getOjsPublicPdfRoot } from "../utils/ojsPublicPdfStorage";
+import path from "path";
+import fs from "fs/promises";
 import {
   ArticlePdfCommit,
   ArticlePdfMove,
@@ -346,6 +349,10 @@ export const createAdminArticle = async (
 
   try {
     const payload = normalizeArticlePayload(req.body);
+    if (payload.pdfUrl.startsWith("ojs-private:")) {
+      res.status(400).json({ success: false, message: "Private OJS PDF references cannot be entered manually." });
+      return;
+    }
 
     if (!payload.issueId) {
       res.status(400).json({ success: false, message: "Issue is required." });
@@ -823,7 +830,13 @@ export const deleteAdminArticle = async (
 
     if (pdfUrl) {
       try {
-        await deleteLocalArticlePdfByUrl(pdfUrl);
+        if (/^\/ojs-pdfs\/[a-f0-9]{16}\/\d+-\d+-[a-f0-9]{64}\.pdf$/i.test(pdfUrl)) {
+          const root = path.resolve(getOjsPublicPdfRoot(), "ojs-articles");
+          const file = path.resolve(root, pdfUrl.slice("/ojs-pdfs/".length));
+          if (file.startsWith(root + path.sep)) await fs.rm(file, { force: true });
+        } else {
+          await deleteLocalArticlePdfByUrl(pdfUrl);
+        }
       } catch (fileError) {
         console.warn("Article deleted but local PDF cleanup failed:", fileError);
       }

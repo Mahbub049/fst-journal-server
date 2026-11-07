@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
 
 export interface IArticle extends Document {
+  ojsImportId?: Types.ObjectId | null;
   issueId: Types.ObjectId;
   title: string;
   slug: string;
@@ -33,6 +34,7 @@ export interface IArticle extends Document {
 
 const ArticleSchema = new Schema<IArticle>(
   {
+    ojsImportId: { type: Schema.Types.ObjectId, ref: "OjsImport", default: undefined },
     issueId: {
       type: Schema.Types.ObjectId,
       ref: "Issue",
@@ -159,6 +161,10 @@ const ArticleSchema = new Schema<IArticle>(
 );
 
 ArticleSchema.index({ issueId: 1, slug: 1 }, { unique: true });
+ArticleSchema.index({ ojsImportId: 1 }, {
+  unique: true,
+  partialFilterExpression: { ojsImportId: { $type: "objectId" } },
+});
 
 const Article = mongoose.model<IArticle>("Article", ArticleSchema);
 

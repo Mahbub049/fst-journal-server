@@ -1,6 +1,8 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IIssue extends Document {
+  ojsSourceId?: string;
+  ojsIssueId?: number;
   title: string;
   slug: string;
   category: string;
@@ -17,6 +19,8 @@ export interface IIssue extends Document {
 
 const IssueSchema = new Schema<IIssue>(
   {
+    ojsSourceId: { type: String, trim: true, default: undefined },
+    ojsIssueId: { type: Number, default: undefined },
     title: {
       type: String,
       required: true,
@@ -78,6 +82,12 @@ const IssueSchema = new Schema<IIssue>(
   },
   { timestamps: true }
 );
+
+// Manual issues have no OJS identity and are unaffected by this unique index.
+IssueSchema.index({ ojsSourceId: 1, ojsIssueId: 1 }, {
+  unique: true,
+  partialFilterExpression: { ojsIssueId: { $type: "number" } },
+});
 
 const Issue = mongoose.model<IIssue>("Issue", IssueSchema);
 

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import ojsImportRoutes from "./ojsImport.routes";
 import issueRoutes from "./issue.routes";
 import authRoutes from "./auth.routes";
 import mediaRoutes from "./media.routes";
@@ -21,6 +22,7 @@ router.get("/", (_req, res) => {
   });
 });
 
+router.use("/integrations/ojs", ojsImportRoutes);
 router.use("/issues", issueRoutes);
 router.use("/auth", authRoutes);
 router.use("/media", mediaRoutes);
