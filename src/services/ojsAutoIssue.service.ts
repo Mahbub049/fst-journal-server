@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { createHash, randomUUID } from "crypto";
 import { getOjsPublicPdfRoot } from "../utils/ojsPublicPdfStorage";
+import { cleanupOjsIssueCover, cleanupStagedOjsCover, publishStagedOjsCover } from "../utils/ojsIssueCoverStorage";
 import Issue from "../models/Issue.model";
 import Article from "../models/Article.model";
 import OjsImport from "../models/OjsImport.model";
@@ -10,7 +11,7 @@ import { formatTwoDigitIssueValue } from "../utils/issueStorage";
 import { getOjsPdfRoot } from "../utils/ojsPdfStorage";
 import { sanitizeRichHtml } from "../utils/sanitizeRichHtml";
 
-type IssueIdentity = { id: number; title: string; volume: number; number: string; year: number; datePublished: string; published: boolean };
+type IssueIdentity = { id: number; title: string; volume: number; number: string; year: number; datePublished: string; published: boolean; cover?: { sha256: string; fileSize: number; mimeType: string } | null };
 const slugify = (value: string): string => value.toLowerCase().trim().replace(/&/g, "and")
   .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 const num = (value: string | number): string => formatTwoDigitIssueValue(String(value));
@@ -21,15 +22,37 @@ const formatIssueDate = (issueData: IssueIdentity): string =>
     ? new Date(`${issueData.datePublished.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
     : "";
 
-async function ensureOjsIssue(sourceId: string, issueData: IssueIdentity) {
+async function ensureOjsIssue(sourceId: string, issueData: IssueIdentity, uploadedCoverUrl: string | null) {
+  const defaultCover = process.env.OJS_AUTO_DEFAULT_COVER_URL || "/images/journal-cover.jpg";
   const alreadyLinked = await Issue.findOne({ ojsSourceId: sourceId, ojsIssueId: issueData.id });
   if (alreadyLinked) {
-    // OJS controls the publication date; preserve manual cover, title, slug, and order.
+    // Preserve title, slug, order, and any cover that was manually changed in IJFST.
     const pubLabel = formatIssueDate(issueData);
+    const currentCover = String(alreadyLinked.coverImage || "");
+    const legacyAutoCover = alreadyLinked.ojsCoverManaged === undefined && currentCover === defaultCover;
+    const coverManaged = alreadyLinked.ojsCoverManaged === true || legacyAutoCover;
+    let changed = false;
     if (!alreadyLinked.isPublished || (pubLabel && pubLabel !== alreadyLinked.publishDateLabel)) {
       alreadyLinked.isPublished = true;
       if (pubLabel) alreadyLinked.publishDateLabel = pubLabel;
+      changed = true;
+    }
+    if (coverManaged) {
+      const nextCover = uploadedCoverUrl || defaultCover;
+      if (nextCover !== currentCover) {
+        alreadyLinked.coverImage = nextCover;
+        changed = true;
+      }
+      if (alreadyLinked.ojsCoverManaged !== true) {
+        alreadyLinked.ojsCoverManaged = true;
+        changed = true;
+      }
+    }
+    if (changed) {
       await alreadyLinked.save();
+      if (coverManaged && currentCover !== alreadyLinked.coverImage) {
+        await cleanupOjsIssueCover(currentCover).catch(error => console.warn("OJS cover cleanup failed:", error));
+      }
     }
     return alreadyLinked;
   }
@@ -47,6 +70,7 @@ async function ensureOjsIssue(sourceId: string, issueData: IssueIdentity) {
     }
     match.ojsSourceId = sourceId;
     match.ojsIssueId = issueData.id;
+    match.ojsCoverManaged = false; // Existing IJFST issue retains its manually selected cover.
     match.isPublished = true;
     // The original IJFST issue title, cover, URL and position remain untouched.
     await match.save();
@@ -57,11 +81,11 @@ async function ensureOjsIssue(sourceId: string, issueData: IssueIdentity) {
   if (collision) throw new Error("Issue slug already exists with another source identity");
   const label = formatIssueDate(issueData) || String(issueData.year);
   return Issue.create({
-    ojsSourceId: sourceId, ojsIssueId: issueData.id,
+    ojsSourceId: sourceId, ojsIssueId: issueData.id, ojsCoverManaged: true,
     title: issueData.title.trim() || "Journal of FST", slug, category: "Science & Technology",
     issn: process.env.OJS_AUTO_DEFAULT_ISSN || "",
     volume: num(issueData.volume), issueNumber: num(issueData.number), publishDateLabel: label,
-    coverImage: process.env.OJS_AUTO_DEFAULT_COVER_URL || "/images/journal-cover.jpg",
+    coverImage: uploadedCoverUrl || defaultCover,
     pdfUrl: "", isRecent: true, isPublished: true, order: 0,
   });
 }
@@ -141,7 +165,12 @@ export async function publishOjsIssueSnapshot(sourceId: string, journalId: numbe
     await snapshot.save();
     return { publishedCount: 0, skippedCount: skipped };
   }
-  const issue = await ensureOjsIssue(sourceId, snapshot.issue);
+  // No cover supplied by OJS => default cover. A supplied but missing/corrupt cover
+  // blocks finalize so the worker retries rather than silently publishing a fallback.
+  const uploadedCoverUrl = snapshot.issue.cover
+    ? await publishStagedOjsCover(sourceId, journalId, issueId, snapshot.issue.cover)
+    : null;
+  const issue = await ensureOjsIssue(sourceId, snapshot.issue, uploadedCoverUrl);
   let publishedCount = 0;
   for (const { doc, galleyId, bytes, hash } of ready) {
     const linked = doc.importedArticleId ? await Article.findById(doc.importedArticleId) : null;
@@ -192,5 +221,14 @@ export async function publishOjsIssueSnapshot(sourceId: string, journalId: numbe
   }
   snapshot.set({ state: "complete", publishedCount, skippedCount: skipped, lastCompletedHash: snapshotHash, lastError: "" });
   await snapshot.save();
+  if (snapshot.issue.cover) {
+    await cleanupStagedOjsCover(sourceId, journalId, issueId, snapshot.issue.cover).catch(error =>
+      console.warn("Staged OJS cover cleanup failed:", error));
+    // Do not retain an unused new cover if an IJFST editor manages this issue's cover.
+    if (uploadedCoverUrl && String(issue.coverImage) !== uploadedCoverUrl) {
+      await cleanupOjsIssueCover(uploadedCoverUrl).catch(error =>
+        console.warn("Unused OJS cover cleanup failed:", error));
+    }
+  }
   return { publishedCount, skippedCount: skipped };
 }

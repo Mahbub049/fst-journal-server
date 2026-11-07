@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IIssue extends Document {
   ojsSourceId?: string;
   ojsIssueId?: number;
+  ojsCoverManaged?: boolean;
   title: string;
   slug: string;
   category: string;
@@ -21,6 +22,8 @@ const IssueSchema = new Schema<IIssue>(
   {
     ojsSourceId: { type: String, trim: true, default: undefined },
     ojsIssueId: { type: Number, default: undefined },
+    // When false, edits made in IJFST must not be overwritten by OJS cover sync.
+    ojsCoverManaged: { type: Boolean, default: undefined },
     title: {
       type: String,
       required: true,

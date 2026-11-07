@@ -15,6 +15,7 @@ export interface IOjsIssueSync extends Document {
     year: number;
     datePublished: string;
     published: boolean;
+    cover?: { sha256: string; fileSize: number; mimeType: string } | null;
   };
   state: "pending" | "complete";
   lastError: string;
@@ -38,6 +39,11 @@ const OjsIssueSyncSchema = new Schema<IOjsIssueSync>({
       year: { type: Number, required: true },
       datePublished: { type: String, default: "" },
       published: { type: Boolean, required: true },
+      cover: { type: new Schema({
+        sha256: { type: String, required: true },
+        fileSize: { type: Number, required: true },
+        mimeType: { type: String, required: true },
+      }, { _id: false }), default: null },
     }, { _id: false }),
     required: true,
   },

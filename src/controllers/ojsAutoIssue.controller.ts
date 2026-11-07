@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { isValidOjsCoverDescriptor, stageOjsIssueCover } from "../utils/ojsIssueCoverStorage";
 import OjsImport from "../models/OjsImport.model";
 import OjsIssueSync from "../models/OjsIssueSync.model";
 import { computePdfStatus } from "./ojsImport.controller";
@@ -17,6 +18,7 @@ export async function receivePublishedIssue(req: Request, res: Response): Promis
       !object(p.issue) || !pos(p.issue.id) || !pos(p.issue.volume) || !pos(p.issue.year) ||
       p.issue.published !== true || !str(p.issue.number, 100) || !p.issue.number.trim() ||
       !str(p.issue.title, 2000) || !str(p.issue.datePublished, 80) ||
+      (p.issue.cover !== undefined && p.issue.cover !== null && !isValidOjsCoverDescriptor(p.issue.cover)) ||
       !Array.isArray(p.articles) || p.articles.length > 150) {
     res.status(400).json({ success: false, message: "Invalid published-issue manifest" }); return;
   }
@@ -57,6 +59,7 @@ export async function receivePublishedIssue(req: Request, res: Response): Promis
     }
     const normalizedIssue = {
       ...p.issue,
+      cover: p.issue.cover ?? null,
       title: p.issue.title.trim() || `Volume ${p.issue.volume}, Issue ${p.issue.number} (${p.issue.year})`,
     };
     await OjsIssueSync.findOneAndUpdate(
@@ -87,5 +90,37 @@ export async function finalizePublishedIssue(req: Request, res: Response): Promi
       { $set: { state: "pending", lastError: "Publication failed; retry queued" } }
     ).catch(() => undefined);
     res.status(503).json({ success: false, message: "IJFST publication incomplete; safe to retry" });
+  }
+}
+
+
+/** Image bytes are staged privately until the matching issue snapshot finalizes. */
+export async function receivePublishedIssueCover(req: Request, res: Response): Promise<void> {
+  const body = req.body;
+  const upload = req.file;
+  const journalId = Number(body?.journalId);
+  const issueId = Number(body?.issueId);
+  const descriptor = {
+    sha256: body?.sha256,
+    fileSize: Number(body?.fileSize),
+    mimeType: body?.mimeType,
+  };
+  if (!upload || body?.sourceId !== sourceId() || !pos(journalId) || !pos(issueId) ||
+      !isValidOjsCoverDescriptor(descriptor) || upload.mimetype !== descriptor.mimeType) {
+    res.status(400).json({ success: false, message: "Invalid issue cover upload" }); return;
+  }
+  try {
+    const receipt = await OjsIssueSync.findOne({ sourceId: body.sourceId, journalId, ojsIssueId: issueId });
+    if (!receipt || !receipt.issue?.cover ||
+        receipt.issue.cover.sha256 !== descriptor.sha256 ||
+        receipt.issue.cover.fileSize !== descriptor.fileSize ||
+        receipt.issue.cover.mimeType !== descriptor.mimeType) {
+      res.status(409).json({ success: false, message: "Issue cover does not match staged manifest" }); return;
+    }
+    await stageOjsIssueCover(body.sourceId, journalId, issueId, descriptor, upload.buffer);
+    res.status(200).json({ success: true, message: "Issue cover staged" });
+  } catch (error) {
+    console.error("OJS cover staging failed:", error);
+    res.status(422).json({ success: false, message: "Issue cover failed validation; retry required" });
   }
 }
