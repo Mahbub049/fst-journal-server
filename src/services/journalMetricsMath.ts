@@ -1,4 +1,4 @@
-/** Independent citation indicators, using completed calendar years only. */
+/** Independent citation indicators, using completed and in-progress calendar years. */
 export interface AnnualCitation { year: number; citedByCount: number }
 export interface MetricArticle {
   year: number;
@@ -7,6 +7,8 @@ export interface MetricArticle {
   workId?: string;
   doi?: string;
   retracted?: boolean;
+  partial?: boolean;
+  identity?: string;
 }
 export const publicationYear = (label: unknown): number | null => {
   const years = String(label || '').match(/\b(?:19|20)\d{2}\b/g);
@@ -21,12 +23,13 @@ export const metricYearBounds = (year: number) => ({ from: year - 3, to: year })
 const sum = (a: MetricArticle, from: number, to: number) => (a.history || []).reduce((n, c) => n + (c.year >= Math.max(from, a.year) && c.year <= to ? c.citedByCount : 0), 0);
 export function calculateJournalMetrics(articles: MetricArticle[], year: number) {
   const unique: MetricArticle[] = [];
-  const doiSet = new Set<string>(); const workSet = new Set<string>();
+  const doiSet = new Set<string>(); const workSet = new Set<string>(); const identitySet = new Set<string>();
   // Prefer a matched record when duplicates exist.
-  for (const a of [...articles].sort((a,b) => Number(b.history !== null) - Number(a.history !== null))) {
-    if ((a.doi && doiSet.has(a.doi)) || (a.workId && workSet.has(a.workId))) continue;
+  for (const a of [...articles].sort((a,b) => Number(b.history !== null) - Number(a.history !== null) || Number(Boolean(a.partial)) - Number(Boolean(b.partial)))) {
+    if ((a.doi && doiSet.has(a.doi)) || (a.workId && workSet.has(a.workId)) || (a.identity && identitySet.has(a.identity))) continue;
     if (a.doi) doiSet.add(a.doi);
     if (a.workId) workSet.add(a.workId);
+    if (a.identity) identitySet.add(a.identity);
     unique.push(a);
   }
   const cite = unique.filter(a => !a.retracted && a.year >= year - 3 && a.year <= year && isCiteEligible(a.articleType));
@@ -34,7 +37,10 @@ export function calculateJournalMetrics(articles: MetricArticle[], year: number)
   const indicator = (items: MetricArticle[], denominator: number, from: number, to: number) => {
     const citations = items.reduce((n,a) => n + sum(a,from,to),0);
     const matched = items.filter(a => a.history !== null).length;
-    return { value: denominator > 0 && matched > 0 ? (citations / denominator).toFixed(1) : 'N/A', citations, publications: denominator, matched, expected: items.length };
+    const partial = items.filter(a => a.history !== null && a.partial).length;
+    const complete = matched === items.length && partial === 0;
+    const observedValue = denominator > 0 && matched > 0 ? (citations / denominator).toFixed(1) : 'N/A';
+    return { value: complete ? observedValue : 'N/A', observedValue, citations, publications: denominator, matched, expected: items.length, partial, complete };
   };
   return {
     citeScore: indicator(cite,cite.length,year-3,year),

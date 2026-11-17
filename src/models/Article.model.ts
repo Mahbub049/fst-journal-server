@@ -21,6 +21,9 @@ export interface IArticle extends Document {
   journalCitationHistory?: {
     identity: string;
     workId: string;
+    resolvedDoi?: string;
+    source?: "OpenAlex" | "OpenCitations";
+    method?: string;
     fetchedAt: Date;
     retracted?: boolean;
     counts: { year: number; citedByCount: number }[];
@@ -115,6 +118,9 @@ const ArticleSchema = new Schema<IArticle>(
       type: new Schema({
         identity: { type: String, required: true },
         workId: { type: String, required: true },
+        resolvedDoi: { type: String, default: "" },
+        source: { type: String, enum: ["OpenAlex", "OpenCitations"], default: "OpenAlex" },
+        method: { type: String, default: "" },
         fetchedAt: { type: Date, required: true },
         retracted: { type: Boolean, default: false },
         counts: { type: [new Schema({
