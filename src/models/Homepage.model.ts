@@ -40,6 +40,7 @@ export interface IHomepage extends Document {
   issnPrint: string;
   issnOnline: string;
   metrics: IHomepageMetric[];
+  automaticJournalMetricsEnabled: boolean;
   overviewTitle: string;
   overviewContent: string;
   countdownEnabled: boolean;
@@ -157,6 +158,7 @@ const homepageSchema = new Schema<IHomepage>(
     issnPrint: { type: String, default: "" },
     issnOnline: { type: String, default: "" },
     metrics: { type: [metricSchema], default: [] },
+    automaticJournalMetricsEnabled: { type: Boolean, default: true },
     overviewTitle: { type: String, default: "Overview" },
     overviewContent: {
       type: String,

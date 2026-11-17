@@ -18,6 +18,13 @@ export interface IArticle extends Document {
   views: number;
   downloads: number;
   citations: number;
+  journalCitationHistory?: {
+    identity: string;
+    workId: string;
+    fetchedAt: Date;
+    retracted?: boolean;
+    counts: { year: number; citedByCount: number }[];
+  };
   citationSyncEnabled: boolean;
   citationSource: "manual" | "OpenAlex" | "Crossref";
   citationSourceId: string;
@@ -103,6 +110,20 @@ const ArticleSchema = new Schema<IArticle>(
     citations: {
       type: Number,
       default: 0,
+    },
+    journalCitationHistory: {
+      type: new Schema({
+        identity: { type: String, required: true },
+        workId: { type: String, required: true },
+        fetchedAt: { type: Date, required: true },
+        retracted: { type: Boolean, default: false },
+        counts: { type: [new Schema({
+          year: { type: Number, required: true },
+          citedByCount: { type: Number, required: true, min: 0 },
+        }, { _id: false })], default: [] },
+      }, { _id: false }),
+      default: undefined,
+      select: false,
     },
     citationSyncEnabled: {
       type: Boolean,

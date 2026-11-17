@@ -77,6 +77,9 @@ const getOpenAlexCitationCount = async (
   if (env.citationSync.mailto) {
     params.set("mailto", env.citationSync.mailto);
   }
+  if (process.env.OPENALEX_API_KEY?.trim()) {
+    params.set("api_key", process.env.OPENALEX_API_KEY.trim());
+  }
 
   const data = await fetchJsonWithTimeout(
     `https://api.openalex.org/works?${params.toString()}`

@@ -7,6 +7,7 @@ import { env } from "./config/env";
 import { isAllowedClientOrigin } from "./config/origins";
 import { seedAdmin } from "./utils/seedAdmin";
 import { bootstrapCms } from "./utils/bootstrapCms";
+import { startJournalMetricsScheduler } from "./services/journalMetrics.service";
 import { startCitationSyncScheduler } from "./services/citationScheduler.service";
 import helmet from "helmet";
 import multer from "multer";
@@ -41,6 +42,7 @@ const ensureDatabaseReady = () => {
       await seedAdmin();
       await bootstrapCms();
       startCitationSyncScheduler();
+      startJournalMetricsScheduler();
     })().catch((error) => {
       databaseReadyPromise = null;
       throw error;
