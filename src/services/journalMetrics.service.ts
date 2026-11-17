@@ -99,7 +99,7 @@ async function refresh() {
       if ((await getSettings())?.automaticJournalMetricsEnabled === false) { message='Refresh stopped: disabled.'; break; }
       try {
         const work = await lookup(r.doi,r.article.title,r.year,r.journalIssns);
-        const filter = {_id:r.article._id,doi:r.article.doi ?? {$exists:false},title:r.article.title,issueId:r.article.issueId,isPublished:true,status:{$ne:'inPress'}};
+        const filter = {_id:r.article._id,doi:r.article.doi ?? {$exists:false},title:r.article.title,issueId:r.article.issueId,isPublished:true,status:{$ne:'inPress' as const}};
         if (!work?.id) {
           // An unmatched lookup is not a verified zero. Clear an obsolete match.
           await Article.updateOne(filter,{$unset:{journalCitationHistory:1}});
