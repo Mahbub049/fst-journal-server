@@ -11,10 +11,13 @@ import {
   updateAdminArticle,
   uploadAdminArticlePdf,
 } from "../controllers/article.controller";
+import { getPublicArticleArchive } from "../controllers/articleArchive.controller";
 import { protectAdmin } from "../middlewares/adminAuth.middleware";
 import { uploadSingleFile } from "../middlewares/upload.middleware";
 
 const router = Router();
+
+router.get("/public/archive", getPublicArticleArchive);
 
 router.get("/admin/all", protectAdmin, getAdminArticles);
 router.post("/admin/upload-pdf", protectAdmin, uploadSingleFile, uploadAdminArticlePdf);

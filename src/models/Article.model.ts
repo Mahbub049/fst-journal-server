@@ -193,6 +193,14 @@ ArticleSchema.index({ ojsImportId: 1 }, {
   partialFilterExpression: { ojsImportId: { $type: "objectId" } },
 });
 
+// Public archive filtering and ranking; existing uniqueness indexes are unchanged.
+ArticleSchema.index({ isPublished: 1, issueId: 1, status: 1 });
+ArticleSchema.index({ isPublished: 1, issueId: 1, order: 1, createdAt: 1, _id: 1 });
+ArticleSchema.index({ isPublished: 1, status: 1, citations: -1, views: -1, downloads: -1, createdAt: -1, _id: -1 });
+ArticleSchema.index({ isPublished: 1, status: 1, downloads: -1, views: -1, createdAt: -1, _id: -1 });
+ArticleSchema.index({ isPublished: 1, status: 1, views: -1, downloads: -1, createdAt: -1, _id: -1 });
+ArticleSchema.index({ isPublished: 1, status: 1, createdAt: -1, _id: -1 });
+
 const Article = mongoose.model<IArticle>("Article", ArticleSchema);
 
 export default Article;
