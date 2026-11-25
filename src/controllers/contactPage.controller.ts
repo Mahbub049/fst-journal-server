@@ -32,6 +32,11 @@ const DEFAULT_CONTACT_PAGE = {
   supportEmail: "editor.fstjournal@bup.edu.bd",
   emailButtonLabel: "Email Editorial Office",
   emailSubject: "Journal of FST editorial office inquiry",
+  showMap: true,
+  mapTitle: "Find Us on the Map",
+  mapQuery: "",
+  mapEmbedUrl: "",
+  mapHeight: 420,
   isPublished: true,
 };
 
@@ -45,6 +50,27 @@ const optionalString = (value: unknown) =>
 //     .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "")
 //     .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
 //     .replace(/javascript\s*:/gi, "");
+
+const isGoogleMapsEmbedUrl = (value: string): boolean => {
+  if (!value.trim()) return true;
+  if (value.length > 4096) return false;
+  try {
+    const url = new URL(value.trim());
+    return (
+      url.origin === "https://www.google.com" &&
+      !url.username && !url.password &&
+      url.pathname === "/maps/embed" &&
+      Boolean(url.searchParams.get("pb"))
+    );
+  } catch {
+    return false;
+  }
+};
+
+const normalizeMapHeight = (value: unknown): number => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 420;
+  return Math.min(640, Math.max(260, Math.round(value)));
+};
 
 const normalizePayload = (body: Record<string, any>) => ({
   showEyebrow: body.showEyebrow ?? true,
@@ -74,6 +100,11 @@ contentHtml: sanitizeRichHtml(
   supportEmail: optionalString(body.supportEmail || body.email),
   emailButtonLabel: optionalString(body.emailButtonLabel),
   emailSubject: optionalString(body.emailSubject),
+  showMap: body.showMap !== false,
+  mapTitle: typeof body.mapTitle === "string" ? body.mapTitle.trim() : DEFAULT_CONTACT_PAGE.mapTitle,
+  mapQuery: optionalString(body.mapQuery).slice(0, 500),
+  mapEmbedUrl: optionalString(body.mapEmbedUrl),
+  mapHeight: normalizeMapHeight(body.mapHeight),
   isPublished: body.isPublished ?? true,
 });
 
@@ -84,7 +115,13 @@ const sanitizeContactPageForResponse = (contactPage: any) => {
       : contactPage || {};
 
   return {
+    showMap: DEFAULT_CONTACT_PAGE.showMap,
+    mapTitle: DEFAULT_CONTACT_PAGE.mapTitle,
+    mapQuery: DEFAULT_CONTACT_PAGE.mapQuery,
+    mapHeight: DEFAULT_CONTACT_PAGE.mapHeight,
     ...rawContactPage,
+    mapEmbedUrl: isGoogleMapsEmbedUrl(optionalString(rawContactPage.mapEmbedUrl))
+      ? optionalString(rawContactPage.mapEmbedUrl) : "",
     contentHtml: sanitizeRichHtml(rawContactPage.contentHtml),
   };
 };
@@ -138,6 +175,10 @@ export const updateAdminContactPage = async (
   res: Response
 ): Promise<void> => {
   try {
+    if (!isGoogleMapsEmbedUrl(optionalString(req.body.mapEmbedUrl))) {
+      res.status(400).json({ success: false, message: "Use a Google Maps Share > Embed a map URL." });
+      return;
+    }
     const payload = normalizePayload(req.body);
     let contactPage = await ContactPage.findOne().sort({ updatedAt: -1 });
 

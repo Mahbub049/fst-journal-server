@@ -26,6 +26,11 @@ export interface IContactPage extends Document {
   supportEmail: string;
   emailButtonLabel: string;
   emailSubject: string;
+  showMap: boolean;
+  mapTitle: string;
+  mapQuery: string;
+  mapEmbedUrl: string;
+  mapHeight: number;
   isPublished: boolean;
 }
 
@@ -97,6 +102,11 @@ const contactPageSchema = new Schema<IContactPage>(
       default: "Journal of FST editorial office inquiry",
       trim: true,
     },
+    showMap: { type: Boolean, default: true },
+    mapTitle: { type: String, default: "Find Us on the Map", trim: true },
+    mapQuery: { type: String, default: "", trim: true, maxlength: 500 },
+    mapEmbedUrl: { type: String, default: "", trim: true, maxlength: 4096 },
+    mapHeight: { type: Number, default: 420, min: 260, max: 640 },
     isPublished: { type: Boolean, default: true },
   },
   { timestamps: true }

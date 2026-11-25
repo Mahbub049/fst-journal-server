@@ -141,6 +141,21 @@ export const sanitizeRichHtml = (
 
     allowedStyles: {
       "*": {
+        // RichTextEditor stores Word-style paragraph and line spacing as
+        // inline CSS. Keep these values on both write and read sanitization.
+        // Restrict spacing to the editor's supported options, not arbitrary CSS.
+        "margin-top": [
+          /^(?:0(?:px|pt)?|8pt)$/i,
+        ],
+
+        "margin-bottom": [
+          /^(?:0(?:px|pt)?|8pt)$/i,
+        ],
+
+        "line-height": [
+          /^(?:1(?:\.0|\.15|\.5)?|2(?:\.0|\.5)?|3(?:\.0)?)$/,
+        ],
+
         "text-align": [
           /^(left|right|center|justify)$/i,
         ],
